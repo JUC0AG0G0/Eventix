@@ -1,0 +1,31 @@
+# Dépendances (seront installées dans le conteneur)
+node_modules
+npm-debug.log
+
+# Fichiers de build
+dist
+coverage
+.nyc_output
+
+# Fichiers d'environnement
+.env*
+
+# Documentation
+README.md
+
+# Git
+.git
+.gitignore
+
+# Fichiers Docker
+.dockerignore
+Dockerfile*
+
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Logs
+*.log
+logs
