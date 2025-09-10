@@ -1,13 +1,47 @@
 version: '3.8'
 
 services:
+  # Backend NestJS
+  backend:
+    build:
+      context: ./server          # Dossier contenant le Dockerfile
+      dockerfile: Dockerfile.dev  # Dockerfile de développement
+    container_name: mon-projet-backend
+    ports:
+      - "3000:3000"              # Port de l'API
+      - "9229:9229"              # Port pour debugging Node.js
+    volumes:
+      # CRUCIAL : Synchroniser le code source pour hot reload
+      - ./server:/app
+      # Exclure node_modules pour éviter les conflits
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      # Connexion à MongoDB (nom du service Docker)
+      - DATABASE_URL=mongodb://mongodb:27017/mon-super-projet
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # MongoDB (votre configuration existante)
   mongodb:
     image: mongo:7.0
-    container_name: mongodb
+    container_name: mon-projet-mongodb
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - mon_projet_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=mon-super-projet
+    networks:
+      - app-network
+    restart: unless-stopped
 
 volumes:
-  mongodb_data:
+  mon_projet_data:
+
+networks:
+  app-network:
+    driver: bridge
