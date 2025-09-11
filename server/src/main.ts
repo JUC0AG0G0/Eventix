@@ -37,4 +37,4 @@ async function bootstrap() {
   console.log(`🗄️  Base de données: ${process.env.MONGO_DB}`);
   console.log(`📊 Niveau de log: ${process.env.LOG_LEVEL}`);
 }
-bootstrap();
+void bootstrap().then();

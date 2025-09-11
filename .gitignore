@@ -20,7 +20,13 @@ lerna-debug.log*
 /.nyc_output
 
 # IDEs and editors
-/.idea
+/.idea/inspectionProfiles
+/.idea/.gitignore
+/.idea/Eventix.iml
+/.idea/modules.xml
+/.idea/prettier.xml
+/.idea/workspace.xml
+/.idea/vcs.xml
 .project
 .classpath
 .c9/
