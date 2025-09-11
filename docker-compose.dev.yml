@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Backend NestJS
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: ${PROJECT_NAME:-eventix}-backend-dev
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${SERVER_PORT}
+      - SERVER_PORT=${SERVER_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SWAGGER_ENABLED=${SWAGGER_ENABLED}
+      - DATABASE_URL=${DATABASE_URL}
+    env_file:
+      - .env.dev
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: ${PROJECT_NAME:-eventix}-mongodb-dev
+    ports:
+      - "${MONGO_PORT}:${MONGO_PORT}"
+    volumes:
+      - eventix_mongodb_dev_data:/data/db
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Mongo Express
+  mongo-express:
+    image: mongo-express:latest
+    container_name: ${PROJECT_NAME:-eventix}-mongo-express-dev
+    ports:
+      - "${MANGO_EXPRESS_PORT}:${MANGO_EXPRESS_PORT}"
+    environment:
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_OPTIONS_EDITORTHEME=default
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=${ME_CONFIG_BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${ME_CONFIG_BASICAUTH_PASSWORD}
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  eventix_mongodb_dev_data:
+
+networks:
+  app-network:
+    driver: bridge

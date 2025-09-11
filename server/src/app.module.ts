@@ -5,7 +5,12 @@ import { HealthController } from './health/health.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
-  imports: [MongooseModule.forRoot('mongodb://mongodb:27017/mon-super-projet')],
+  imports: [
+    // Connexion SIMPLE sans authentification
+    MongooseModule.forRoot(
+      process.env.DATABASE_URL || 'mongodb://mongodb:27017/eventix',
+    ),
+  ],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
