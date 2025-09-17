@@ -1,23 +1,20 @@
-import { Controller, Get } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import { Connection, ConnectionStates } from 'mongoose';
+import { Controller, Get } from "@nestjs/common";
+import { InjectConnection } from "@nestjs/mongoose";
+import { Connection, ConnectionStates } from "mongoose";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
-  constructor(@InjectConnection() private connection: Connection) {}
+	constructor(@InjectConnection() private _connection: Connection) {}
 
-  @Get()
-  check() {
-    const dbStatus =
-      this.connection.readyState === ConnectionStates.connected
-        ? 'connected'
-        : 'disconnected';
+	@Get()
+	check() {
+		const dbStatus = this._connection.readyState === ConnectionStates.connected ? "connected" : "disconnected";
 
-    return {
-      status: 'ok',
-      database: dbStatus,
-      timestamp: new Date().toISOString(),
-      dbName: this.connection.name,
-    };
-  }
+		return {
+			status: "ok",
+			database: dbStatus,
+			timestamp: new Date().toISOString(),
+			dbName: this._connection.name,
+		};
+	}
 }
