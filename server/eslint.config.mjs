@@ -16,7 +16,7 @@ export default tseslint.config(
 			globals: {
 				...globals.node,
 				...globals.jest,
-				...globals.browser, //pour le front
+				...globals.browser,
 			},
 			sourceType: "commonjs",
 			parserOptions: {
@@ -34,7 +34,7 @@ export default tseslint.config(
 			eqeqeq: ["error", "always"],
 			"no-var": "error",
 			"prefer-const": "warn",
-			"no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+			"no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 
 			curly: ["error", "all"],
 			"default-case": "warn",
@@ -44,5 +44,15 @@ export default tseslint.config(
 			semi: ["error", "always"],
 			"comma-dangle": ["error", "always-multiline"],
 		},
-	}
+	},
+	// Configuration spécifique pour les fichiers de test
+	{
+		files: ["**/*.spec.ts", "**/*.test.ts", "**/*.e2e-spec.ts"],
+		rules: {
+			"@typescript-eslint/no-unsafe-return": "off",
+			"@typescript-eslint/no-unsafe-call": "off",
+			"@typescript-eslint/no-unsafe-member-access": "off",
+			"@typescript-eslint/no-unsafe-assignment": "off",
+		},
+	},
 );
