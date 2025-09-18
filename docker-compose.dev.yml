@@ -25,7 +25,6 @@ services:
       - mongodb
     networks:
       - app-network
-    restart: unless-stopped
 
   # MongoDB
   mongodb:
@@ -42,7 +41,6 @@ services:
       - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - app-network
-    restart: unless-stopped
 
   # Mongo Express
   mongo-express:
@@ -63,7 +61,6 @@ services:
       - mongodb
     networks:
       - app-network
-    restart: unless-stopped
 
 volumes:
   eventix_mongodb_dev_data:
