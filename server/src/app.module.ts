@@ -1,17 +1,22 @@
 import { Module } from "@nestjs/common";
-import { AppController } from "./app.controller";
-import { AppService } from "./app.service";
-import { HealthController } from "./health/health.controller";
 import { MongooseModule } from "@nestjs/mongoose";
+import { ConfigModule } from "@nestjs/config";
+
+import { HealthController } from "./health/health.controller";
 import { EventModule } from "./event/event.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
 	imports: [
-		// Connexion SIMPLE sans authentification
-		MongooseModule.forRoot(process.env.DATABASE_URL || "mongodb://mongodb:27017/eventix"),
+		ConfigModule.forRoot({
+			isGlobal: true,
+		}),
+		MongooseModule.forRoot(process.env.DATABASE_URL || "mongodb://localhost:27017/eventix", {
+			autoIndex: true,
+		}),
 		EventModule,
+		UsersModule,
 	],
-	controllers: [AppController, HealthController],
-	providers: [AppService],
+	controllers: [HealthController],
 })
 export class AppModule {}
