@@ -10,7 +10,7 @@ import { SignOptions } from "jsonwebtoken";
 
 @Module({
 	imports: [
-		ConfigModule, // global normalement
+		ConfigModule,
 		PassportModule,
 		JwtModule.registerAsync({
 			imports: [ConfigModule],

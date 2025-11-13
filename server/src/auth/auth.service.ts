@@ -6,6 +6,9 @@ import { JwtService } from "@nestjs/jwt";
 interface PublicUser {
 	id?: string;
 	_id?: string;
+	email?: string;
+	firstName?: string;
+	lastName?: string;
 	role?: string;
 	[key: string]: unknown;
 }
@@ -110,6 +113,9 @@ export class AuthService {
 
 		const payload = {
 			sub: String(userId),
+			email: typeof user.email === "string" ? user.email : undefined,
+			firstName: typeof user.firstName === "string" ? user.firstName : undefined,
+			lastName: typeof user.lastName === "string" ? user.lastName : undefined,
 			role: typeof user.role === "string" ? user.role : "user",
 		};
 
