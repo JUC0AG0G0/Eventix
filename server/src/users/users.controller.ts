@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { CurrentUser } from "../common/decorators/current-user.decorator";
+import * as currentUserDecorator from "../common/decorators/current-user.decorator";
 
 @Controller("users")
 export class UsersController {
@@ -13,16 +13,15 @@ export class UsersController {
 		return this.usersService.create(dto);
 	}
 
-	@Get("me")
 	@UseGuards(JwtAuthGuard)
-	async getMe(@CurrentUser() user: { id: string; role: string; email?: string }) {
-		const userFromDb = await this.usersService.findByEmail(user.email!);
+	@Get("me")
+	getMe(@currentUserDecorator.CurrentUser() user: currentUserDecorator.JwtPayload) {
 		return {
-			id: user.id,
-			email: userFromDb?.email,
-			firstName: userFromDb?.firstName,
-			lastName: userFromDb?.lastName,
+			email: user.email,
+			firstName: user.firstName,
+			lastName: user.lastName,
 			role: user.role,
+			tokenExpiresAt: new Date(user.exp * 1000),
 		};
 	}
 }
