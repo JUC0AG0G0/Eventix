@@ -14,7 +14,6 @@ export class User {
 	@Prop({ required: true })
 	lastName: string;
 
-	// on stocke le hash du mot de passe (pas le mot de passe en clair)
 	@Prop({ required: true })
 	passwordHash: string;
 
