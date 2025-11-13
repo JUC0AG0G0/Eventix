@@ -35,9 +35,6 @@ export class EventDto {
 	EditDate: Date;
 }
 
-/**
- * Wrapper pour la réponse paginée (utilisé par Swagger).
- */
 export class PaginatedEventsDto {
 	@ApiProperty({ type: [EventDto] })
 	data: EventDto[];

@@ -1,10 +1,12 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
 import { EventService } from "./event.service";
 import { EventDto, PaginatedEventsDto } from "./dto/event.dto";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
 @ApiTags("Events")
+@UseGuards(JwtAuthGuard)
 @Controller("events")
 export class EventController {
 	constructor(private readonly eventService: EventService) {}
@@ -31,13 +33,10 @@ export class EventController {
 		const page = pageQuery ? parseInt(pageQuery, 10) : 1;
 		const pageNumber = Number.isFinite(page) && page > 0 ? page : 1;
 
-		// Récupère les docs bruts depuis le service
 		const { docs, meta } = await this.eventService.findPaginatedRaw(pageNumber, 10);
 
-		// Transformation vers DTO : on prend les champs exposés dans EventDto.
-		// plainToInstance ignore par défaut les champs qui ne sont pas marqués @Expose si on utilise enableImplicitConversion=false.
 		const data = plainToInstance(EventDto, docs, {
-			excludeExtraneousValues: true, // CRUCIAL : filtre _id et autres champs non exposés
+			excludeExtraneousValues: true,
 		});
 
 		return { data, meta };

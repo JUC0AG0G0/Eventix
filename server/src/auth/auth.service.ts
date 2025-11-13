@@ -4,27 +4,57 @@ import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 
 interface PublicUser {
-	id?: string | number;
-	_id?: string | number;
+	id?: string;
+	_id?: string;
 	role?: string;
 	[key: string]: unknown;
 }
 
-function toPlainRecord(obj: unknown): Record<string, unknown> | null {
+function safeToString(x: unknown): string | null {
+	if (x === null || x === undefined) {
+		return null;
+	}
+	if (typeof x === "string") {
+		return x;
+	}
+	if (typeof (x as { toString?: unknown }).toString === "function") {
+		const res = (x as { toString: () => unknown }).toString();
+		if (typeof res === "string") {
+			return res;
+		}
+	}
+	return null;
+}
+
+function toPublicRecord(obj: unknown): Record<string, unknown> | null {
 	if (!obj || typeof obj !== "object") {
 		return null;
 	}
 
 	const maybe = obj as { toObject?: unknown };
+	let plain: unknown;
 	if (typeof maybe.toObject === "function") {
-		const plain = (maybe.toObject as () => unknown)();
-		if (plain && typeof plain === "object") {
-			return plain as Record<string, unknown>;
-		}
+		const fn = maybe.toObject as () => unknown;
+		plain = fn.call(maybe);
+	} else {
+		plain = obj;
+	}
+
+	if (!plain || typeof plain !== "object") {
 		return null;
 	}
 
-	return obj as Record<string, unknown>;
+	const record = { ...(plain as Record<string, unknown>) };
+
+	const normalized = safeToString(record._id);
+	if (normalized !== null) {
+		record._id = normalized;
+	}
+	if (!record.id && typeof record._id === "string") {
+		record.id = record._id;
+	}
+
+	return record;
 }
 
 @Injectable()
@@ -35,25 +65,39 @@ export class AuthService {
 	) {}
 
 	async validateUser(email: string, password: string): Promise<PublicUser | null> {
-		const raw = await this.usersService.findByEmail(email);
-
-		const source = toPlainRecord(raw);
+		const raw: unknown = await this.usersService.findByEmail(email);
+		const source = toPublicRecord(raw);
 		if (!source) {
 			return null;
 		}
 
-		const passwordHash = source.passwordHash;
-		if (typeof passwordHash !== "string") {
+		const maybeHash = source["passwordHash"];
+		if (typeof maybeHash !== "string") {
 			return null;
 		}
 
-		const isValid = await bcrypt.compare(password, passwordHash);
+		const isValid = await bcrypt.compare(password, maybeHash);
 		if (!isValid) {
 			return null;
 		}
 
-		const entries = Object.entries(source).filter(([key]) => key !== "passwordHash");
-		const publicObj = Object.fromEntries(entries) as Record<string, unknown>;
+		const publicObj: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(source)) {
+			if (k === "passwordHash") {
+				continue;
+			}
+			publicObj[k] = v;
+		}
+
+		if (publicObj._id !== undefined) {
+			const s = safeToString(publicObj._id);
+			if (s !== null) {
+				publicObj._id = s;
+			}
+		}
+		if (!publicObj.id && typeof publicObj._id === "string") {
+			publicObj.id = publicObj._id;
+		}
 
 		return publicObj as PublicUser;
 	}
@@ -64,7 +108,11 @@ export class AuthService {
 			throw new UnauthorizedException("Invalid user");
 		}
 
-		const payload = { sub: String(userId), role: typeof user.role === "string" ? user.role : "user" };
+		const payload = {
+			sub: String(userId),
+			role: typeof user.role === "string" ? user.role : "user",
+		};
+
 		const access_token = await this.jwtService.signAsync(payload);
 		return { access_token };
 	}

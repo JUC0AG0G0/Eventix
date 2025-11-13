@@ -27,7 +27,7 @@ import { SignOptions } from "jsonwebtoken";
 					Number.isFinite(asNumber) && asNumber > 0 ? asNumber : String(expiresInRaw);
 
 				const signOptions: SignOptions = {
-					expiresIn: expiresInValue as SignOptions["expiresIn"], // <- la correction ici
+					expiresIn: expiresInValue as SignOptions["expiresIn"],
 				};
 
 				return {
