@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
 import { EventService } from "./event.service";
 import { EventDto, PaginatedEventsDto } from "./dto/event.dto";
@@ -49,14 +49,25 @@ export class EventController {
 
 	@Post("register")
 	@Roles("user")
-	@ApiOperation({ summary: "Inscrire l'utilisateur connecté à un événement (envoie { id })" })
-	@ApiResponse({ status: 200, description: "Inscription réussie, retourne l'événement mis à jour." })
+	@ApiOperation({
+		summary: "Inscrire l'utilisateur connecté à un événement",
+		description: "Permet à un utilisateur authentifié de s'inscrire à un événement en envoyant l'id de l'événement.",
+	})
+	@ApiBody({
+		type: RegisterEventDto,
+		description: "DTO contenant l'identifiant de l'événement auquel s'inscrire",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Inscription réussie, retourne l'événement mis à jour.",
+		type: EventDto,
+	})
 	@ApiResponse({ status: 400, description: "Événement complet." })
-	@ApiResponse({ status: 401, description: "Token invalide/absent." })
-	@ApiResponse({ status: 403, description: "Rôle insuffisant." })
+	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
+	@ApiResponse({ status: 403, description: "Rôle insuffisant pour cette action." })
 	@ApiResponse({ status: 404, description: "Événement introuvable." })
 	async register(@Body() dto: RegisterEventDto, @CurrentUser() user: JwtPayload) {
-		const userId = user.sub; // sub contient l'id (string)
+		const userId = user.sub;
 		const updated = await this.eventService.registerUser(dto.id, String(userId));
 		return updated;
 	}
