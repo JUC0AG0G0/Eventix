@@ -7,11 +7,6 @@ import { Event, EventDocument } from "./event.schema";
 export class EventService {
 	constructor(@InjectModel(Event.name) private readonly eventModel: Model<EventDocument>) {}
 
-	/**
-	 * Récupère les events paginés (documents bruts).
-	 * page starts at 1
-	 * limit default 10
-	 */
 	async findPaginatedRaw(page = 1, limit = 10) {
 		const skip = (Math.max(page, 1) - 1) * limit;
 
