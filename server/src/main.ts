@@ -38,10 +38,26 @@ async function bootstrap() {
 			const config = new DocumentBuilder()
 				.setTitle("Eventix API")
 				.setDescription("API Backend pour Eventix")
-				.addBearerAuth()
+				.addBearerAuth(
+					{
+						type: "http",
+						scheme: "bearer",
+						bearerFormat: "JWT",
+						name: "Authorization",
+						in: "header",
+					},
+					"bearerAuth",
+				)
 				.build();
+
 			const document = SwaggerModule.createDocument(app, config);
-			SwaggerModule.setup("docs", app, document);
+
+			SwaggerModule.setup("docs", app, document, {
+				swaggerOptions: {
+					persistAuthorization: true,
+				},
+			});
+
 			console.log(`📚 Swagger: http://localhost:${process.env.SERVER_PORT}/docs`);
 		}
 

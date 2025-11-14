@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
 import { EventService } from "./event.service";
 import { EventDto, PaginatedEventsDto } from "./dto/event.dto";
@@ -7,6 +7,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
 @ApiTags("Events")
 @UseGuards(JwtAuthGuard)
+@ApiBearerAuth("bearerAuth")
 @Controller("events")
 export class EventController {
 	constructor(private readonly eventService: EventService) {}

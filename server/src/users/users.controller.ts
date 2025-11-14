@@ -3,6 +3,7 @@ import { UsersService } from "./users.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import * as currentUserDecorator from "../common/decorators/current-user.decorator";
+import { ApiBearerAuth } from "@nestjs/swagger";
 
 @Controller("users")
 export class UsersController {
@@ -14,6 +15,7 @@ export class UsersController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth("bearerAuth")
 	@Get("me")
 	getMe(@currentUserDecorator.CurrentUser() user: currentUserDecorator.JwtPayload) {
 		return {
