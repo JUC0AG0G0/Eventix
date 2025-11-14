@@ -21,65 +21,98 @@ function getRandomRecentDate() {
 console.log("🌱 Initialisation de la base de données:", dbName);
 
 // ========================================
-// 1. CRÉATION DE LA COLLECTION "user"
+// 1. CRÉATION DE LA COLLECTION "users"
 // ========================================
 
-console.log("👥 Création de la collection 'user'...");
-db.createCollection("user");
+if (!db.getCollectionNames().includes("users")) {
+    console.log("👥 Création de la collection 'users'...");
+    db.createCollection("users");
+}
 
-// Génération des utilisateurs de base
-const adminId = generateUUID();
-const userIds = [
-    adminId,
-    generateUUID(),
-    generateUUID(),
-    generateUUID(),
-    generateUUID()
-];
+// Données utilisateur au format demandé
+const now = new Date();
 
 const users = [
     {
-        id: adminId,
-        role: "admin",
+        id: generateUUID(),
         email: "admin@eventix.fr",
-        password: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2" // hash pour "admin123"
+        firstName: "Admin",
+        lastName: "Eventix",
+        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        role: "admin",
+        createdAt: now,
+        updatedAt: now,
+        __v: 0
     },
     {
-        id: userIds[1],
-        role: "client",
+        id: generateUUID(),
         email: "jean.dupont@example.fr",
-        password: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2"
+        firstName: "Jean",
+        lastName: "Dupont",
+        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        role: "user",
+        createdAt: getRandomRecentDate(),
+        updatedAt: now,
+        __v: 0
     },
     {
-        id: userIds[2],
-        role: "client",
+        id: generateUUID(),
         email: "marie.martin@domain.com",
-        password: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2"
+        firstName: "Marie",
+        lastName: "Martin",
+        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        role: "user",
+        createdAt: getRandomRecentDate(),
+        updatedAt: now,
+        __v: 0
     },
     {
-        id: userIds[3],
-        role: "client",
+        id: generateUUID(),
         email: "pierre.bernard@email.fr",
-        password: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2"
+        firstName: "Pierre",
+        lastName: "Bernard",
+        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        role: "user",
+        createdAt: getRandomRecentDate(),
+        updatedAt: now,
+        __v: 0
     },
     {
-        id: userIds[4],
-        role: "client",
+        id: generateUUID(),
         email: "sophie.moreau@test.fr",
-        password: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2"
+        firstName: "Sophie",
+        lastName: "Moreau",
+        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        role: "user",
+        createdAt: getRandomRecentDate(),
+        updatedAt: now,
+        __v: 0
     }
 ];
 
+// On vide la collection si on veut reseeder proprement (optionnel)
+// db.users.deleteMany({});
+
 // Insertion des utilisateurs
-db.user.insertMany(users);
-console.log(`✅ ${users.length} utilisateurs créés`);
+const insertUsersResult = db.users.insertMany(users);
+console.log(`✅ ${users.length} utilisateurs créés dans la collection 'users'`);
+
+// Récupérer les ids des utilisateurs qui ont le role "user"
+const userIds = users.filter(u => u.role === "user").map(u => u.id);
 
 // ========================================
 // 2. CRÉATION DE LA COLLECTION "event"
 // ========================================
 
-console.log("🎉 Création de la collection 'event'...");
-db.createCollection("event");
+if (!db.getCollectionNames().includes("event")) {
+    console.log("🎉 Création de la collection 'event'...");
+    db.createCollection("event");
+}
+
+// Helper: safe pick n ids (si ordres de grandeur manquent, on prend ce qu'il y a)
+function pickIds(arr, n) {
+    return arr.slice(0, Math.max(0, Math.min(n, arr.length)));
+}
 
 // Génération des événements avec des données réalistes
 const events = [
@@ -89,8 +122,8 @@ const events = [
         Description: "Lorem Elsass ipsum Huguette s'guelt commodo kuglopf Miss Dahlias sagittis elit et munster gravida schpeck ac ornare geïz und condimentum Coopé de Truchtersheim wurscht leo tchao varius",
         Image: "https://salles-cinema.com/wp-content/uploads/2024/07/pathe-palace-opera.jpg",
         nbPlaceTotal: 60,
-        nbPlaceOccupe: 14,
-        personneInscrites: [userIds[1], userIds[2], userIds[3]].slice(0, 3), // 3 personnes inscrites
+        nbPlaceOccupe: 3,
+        personneInscrites: pickIds(userIds, 3),
         Status: "Ok",
         EditDate: getRandomRecentDate()
     },
@@ -100,8 +133,8 @@ const events = [
         Description: "Une soirée au zoo exceptionnelle avec des musiciens locaux talentueux. Venez découvrir les classiques du zoo dans une ambiance intimiste et chaleureuse.",
         Image: "https://www.zoodejurques.fr/wp-content/uploads/2023/11/ZOODEJURQUES_Banniere_Siteweb-scaled.jpg",
         nbPlaceTotal: 80,
-        nbPlaceOccupe: 75,
-        personneInscrites: [userIds[1], userIds[2], userIds[3], userIds[4]].slice(0, 4),
+        nbPlaceOccupe: 4,
+        personneInscrites: pickIds(userIds, 4),
         Status: "Ok",
         EditDate: getRandomRecentDate()
     },
@@ -111,8 +144,8 @@ const events = [
         Description: "Découvrez les magnifiques paysages des Vosges lors de cette randonnée guidée. Niveau modéré, prévoir de bonnes chaussures et un pique-nique.",
         Image: "https://magazine.sportihome.com/wp-content/uploads/2019/05/rando-vosges-1-696x367.jpg",
         nbPlaceTotal: 25,
-        nbPlaceOccupe: 8,
-        personneInscrites: [userIds[2], userIds[4]].slice(0, 2),
+        nbPlaceOccupe: 2,
+        personneInscrites: pickIds(userIds, 2),
         Status: "Ok",
         EditDate: getRandomRecentDate()
     },
@@ -122,8 +155,8 @@ const events = [
         Description: "Apprenez à cuisiner les spécialités alsaciennes avec un chef local. Au programme : tarte flambée, choucroute et kougelhopf !",
         Image: "https://www.recettes-alsace.fr/recettes/wp-content/uploads/2013/11/kouglof-400x300.jpg",
         nbPlaceTotal: 15,
-        nbPlaceOccupe: 12,
-        personneInscrites: [userIds[1], userIds[3], userIds[4]].slice(0, 3),
+        nbPlaceOccupe: 3,
+        personneInscrites: pickIds(userIds, 3),
         Status: "Ok",
         EditDate: getRandomRecentDate()
     },
@@ -133,8 +166,8 @@ const events = [
         Description: "Venez chanter vos tubes préférés lors de cette soirée karaoké conviviale. Ambiance garantie et prix spéciaux sur les boissons !",
         Image: "https://laser-time.fr/content/uploads/2024/06/Karaoke_home.jpg",
         nbPlaceTotal: 50,
-        nbPlaceOccupe: 0,
-        personneInscrites: [],
+        nbPlaceOccupe: 2,
+        personneInscrites: pickIds(userIds, 2),
         Status: "annulé",
         EditDate: getRandomRecentDate()
     },
@@ -144,8 +177,8 @@ const events = [
         Description: "Découvrez les œuvres d'artistes contemporains dans cette exposition exclusive. Visite guidée incluse avec un critique d'art reconnu.",
         Image: "https://parisjetaime.com/data/layout_image/28778_Art-Paris-art-fair-2022-D%C3%A9tail-galerie--630x405--%C2%A9-Marc-Domage.jpg",
         nbPlaceTotal: 40,
-        nbPlaceOccupe: 22,
-        personneInscrites: [userIds[1], userIds[2]].slice(0, 2),
+        nbPlaceOccupe: 2,
+        personneInscrites: pickIds(userIds, 2),
         Status: "Ok",
         EditDate: getRandomRecentDate()
     }
@@ -162,8 +195,8 @@ console.log(`✅ ${events.length} événements créés`);
 console.log("🔍 Création des index...");
 
 // Index sur les champs fréquemment utilisés
-db.user.createIndex({ "email": 1 }, { unique: true });
-db.user.createIndex({ "id": 1 }, { unique: true });
+db.users.createIndex({ "email": 1 }, { unique: true });
+db.users.createIndex({ "id": 1 }, { unique: true });
 
 db.event.createIndex({ "id": 1 }, { unique: true });
 db.event.createIndex({ "Status": 1 });
@@ -175,18 +208,20 @@ console.log("✅ Index créés");
 // 4. CRÉATION DE LA COLLECTION DE SEED (pour tracking)
 // ========================================
 
-db.createCollection("seed");
+if (!db.getCollectionNames().includes("seed")) {
+    db.createCollection("seed");
+}
 db.seed.insertOne({
     seededAt: new Date(),
-    version: "1.0",
-    collections: ["user", "event"],
+    version: "1.1",
+    collections: ["users", "event"],
     userCount: users.length,
     eventCount: events.length
 });
 
 console.log("🎯 Seed terminé avec succès !");
 console.log("📊 Résumé:");
-console.log(`   - ${users.length} utilisateurs créés`);
+console.log(`   - ${users.length} utilisateurs créés (collection 'users')`);
 console.log(`   - ${events.length} événements créés`);
 console.log(`   - Collections indexées pour les performances`);
 console.log("");
