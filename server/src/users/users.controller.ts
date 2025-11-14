@@ -3,13 +3,7 @@ import { UsersService } from "./users.service";
 import { RegisterUserDto } from "./dto/register-user.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import * as currentUserDecorator from "../common/decorators/current-user.decorator";
-import {
-	ApiBearerAuth,
-	ApiOperation,
-	ApiResponse,
-	ApiTags,
-	ApiBody,
-} from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from "@nestjs/swagger";
 
 @ApiTags("Users")
 @Controller("users")
