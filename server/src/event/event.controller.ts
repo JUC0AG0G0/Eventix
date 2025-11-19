@@ -8,6 +8,7 @@ import { Roles } from "../auth/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { JwtPayload } from "../auth/strategies/jwt.strategy";
 import { RegisterEventDto } from "./dto/register-event.dto";
+import { RolesGuard } from "../auth/roles.guard";
 
 @ApiTags("Events")
 @UseGuards(JwtAuthGuard)
@@ -48,6 +49,7 @@ export class EventController {
 	}
 
 	@Post("register")
+	@UseGuards(RolesGuard)
 	@Roles("user")
 	@ApiOperation({
 		summary: "Inscrire l'utilisateur connecté à un événement",
