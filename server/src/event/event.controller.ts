@@ -73,4 +73,13 @@ export class EventController {
 		const updated = await this.eventService.registerUser(dto.id, String(userId));
 		return updated;
 	}
+
+	////// Edition ADMIN
+	// Patch nbplace
+	// Delete event
+
+	////// Synchro
+	// Get
+	// Param de la dernière date user.
+	// Algo qui cherche si un event a été modifié depuis cette date ou est le user.
 }
