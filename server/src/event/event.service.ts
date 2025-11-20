@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { Event, EventDocument } from "./event.schema";
 
 @Injectable()
@@ -29,15 +29,25 @@ export class EventService {
 	}
 
 	async registerUser(eventId: string, userId: string) {
+		if (!Types.ObjectId.isValid(eventId)) {
+			throw new NotFoundException("Event not found");
+		}
+		if (!Types.ObjectId.isValid(userId)) {
+			throw new BadRequestException("Invalid user id");
+		}
+
+		const eventObjectId = new Types.ObjectId(eventId);
+		const userObjectId = new Types.ObjectId(userId);
+
 		const filter = {
-			id: eventId,
-			personneInscrites: { $ne: userId },
+			_id: eventObjectId,
+			personneInscrites: { $ne: userObjectId },
 			$expr: { $lt: ["$nbPlaceOccupe", "$nbPlaceTotal"] },
 			Status: "Ok",
 		};
 
 		const update: any = {
-			$addToSet: { personneInscrites: userId },
+			$addToSet: { personneInscrites: userObjectId },
 			$inc: { nbPlaceOccupe: 1 },
 		};
 
@@ -46,12 +56,13 @@ export class EventService {
 		let updated = await this.eventModel.findOneAndUpdate(filter, update, options).lean().exec();
 
 		if (!updated) {
-			const existing = await this.eventModel.findOne({ id: eventId }).lean().exec();
+			const existing = await this.eventModel.findOne({ _id: eventObjectId }).lean().exec();
 			if (!existing) {
 				throw new NotFoundException("Event not found");
 			}
 
-			if ((existing.personneInscrites || []).includes(userId)) {
+			const inscritIds = (existing.personneInscrites || []).map((id: any) => String(id));
+			if (inscritIds.includes(String(userObjectId))) {
 				throw new ConflictException("User already registered to this event");
 			}
 
@@ -68,7 +79,7 @@ export class EventService {
 
 		if (updated.nbPlaceOccupe >= updated.nbPlaceTotal && updated.Status === "Ok") {
 			updated = await this.eventModel
-				.findOneAndUpdate({ id: eventId }, { Status: "Complet" }, { new: true } as const)
+				.findOneAndUpdate({ _id: eventObjectId }, { Status: "Complet" }, { new: true } as const)
 				.lean()
 				.exec();
 		}
