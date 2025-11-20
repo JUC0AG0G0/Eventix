@@ -4,7 +4,7 @@ import { Expose } from "class-transformer";
 export class EventDto {
 	@ApiProperty({ example: "d803a0d5-a956-4bbf-823e-f93433b3ccea" })
 	@Expose()
-	id: string;
+	_id: string;
 
 	@ApiProperty({ example: "Randonnée en montagne" })
 	@Expose()
