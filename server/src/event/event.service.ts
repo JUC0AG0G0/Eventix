@@ -3,6 +3,9 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Event, EventDocument } from "./event.schema";
 import { UpdateCapacityDto } from "./dto/update-capacity.dto";
+import { SyncEventsDto } from "./dto/sync-events.dto";
+import { plainToInstance } from "class-transformer";
+import { EventDto } from "./dto/event.dto";
 
 @Injectable()
 export class EventService {
@@ -152,5 +155,41 @@ export class EventService {
 		await event.save();
 
 		return;
+	}
+
+	async syncUserEvents(userId: string, sinceIso?: string): Promise<SyncEventsDto> {
+		const since = sinceIso ? new Date(sinceIso) : new Date(0);
+
+		if (sinceIso && Number.isNaN(since.getTime())) {
+			throw new BadRequestException({ message: "Paramètre 'since' invalide (format ISO attendu)." });
+		}
+
+		const eventsRaw = await this.findUserEventsModifiedAfter(userId, since);
+
+		const events = plainToInstance(EventDto, eventsRaw, {
+			excludeExtraneousValues: true,
+		});
+
+		return {
+			lastSync: new Date().toISOString(),
+			events,
+		};
+	}
+
+	async findUserEventsModifiedAfter(userId: string, since: Date) {
+		if (!Types.ObjectId.isValid(userId)) {
+			throw new BadRequestException("Invalid user id");
+		}
+
+		const userObjectId = new Types.ObjectId(userId);
+
+		return this.eventModel
+			.find({
+				personneInscrites: { $in: [userObjectId] },
+				EditDate: { $gt: since },
+			})
+			.sort({ EditDate: -1 })
+			.lean()
+			.exec();
 	}
 }

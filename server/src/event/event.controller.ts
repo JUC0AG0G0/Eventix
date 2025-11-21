@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import {
+	Body,
+	Controller,
+	Delete,
+	Get,
+	Param,
+	Patch,
+	Post,
+	Query,
+	UseGuards,
+	BadRequestException,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
 import { EventService } from "./event.service";
@@ -10,6 +21,8 @@ import type { JwtPayload } from "../auth/strategies/jwt.strategy";
 import { RegisterEventDto } from "./dto/register-event.dto";
 import { RolesGuard } from "../auth/roles.guard";
 import { UpdateCapacityDto } from "./dto/update-capacity.dto";
+import { SyncEventsDto } from "./dto/sync-events.dto";
+import { SyncQueryDto } from "./dto/sync-query.dto";
 
 @ApiTags("Events")
 @UseGuards(JwtAuthGuard)
@@ -130,8 +143,26 @@ export class EventController {
 		return { action: "deleted" };
 	}
 
-	////// Synchro
-	// Get
-	// Param de la dernière date user.
-	// Algo qui cherche si un event a été modifié depuis cette date ou est le user.
+	@Get("sync")
+	@ApiOperation({
+		summary: "Synchronisation des événements pour l'utilisateur",
+		description:
+			"Retourne les événements auxquels l'utilisateur est inscrit et qui ont été modifiés après la date fournie.",
+	})
+	@ApiQuery({
+		name: "since",
+		required: false,
+		type: String,
+		description: "Date ISO 8601 de la dernière synchro",
+		example: "2025-11-17T14:34:55.909Z",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Événements modifiés depuis la dernière synchro.",
+		type: SyncEventsDto,
+	})
+	@ApiResponse({ status: 400, description: "Paramètre since invalide." })
+	async sync(@Query() query: SyncQueryDto, @CurrentUser() user: JwtPayload): Promise<SyncEventsDto> {
+		return this.eventService.syncUserEvents(String(user.sub), query.since);
+	}
 }
