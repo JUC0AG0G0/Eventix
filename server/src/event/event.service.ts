@@ -89,7 +89,45 @@ export class EventService {
 	}
 
 	async deleteEvent(eventId: string) {
-		const deleted = eventId;
+		if (!Types.ObjectId.isValid(eventId)) {
+			throw new BadRequestException("Invalid event id");
+		}
+
+		const eventObjectId = new Types.ObjectId(eventId);
+
+		const existing = await this.eventModel.findById(eventObjectId).lean().exec();
+		if (!existing) {
+			throw new NotFoundException("Event not found");
+		}
+
+		const occupied = existing.nbPlaceOccupe ?? 0;
+
+		if (occupied > 0) {
+			if (existing.Status !== "Ok") {
+				throw new BadRequestException(`Cannot cancel event with status "${existing.Status}"`);
+			}
+
+			const updated = await this.eventModel
+				.findOneAndUpdate(
+					{ _id: eventObjectId, Status: "Ok" },
+					{ $set: { Status: "Canceled", EditDate: new Date() } },
+					{ new: true } as const,
+				)
+				.lean()
+				.exec();
+
+			if (!updated) {
+				throw new BadRequestException("Unable to cancel event");
+			}
+
+			return updated;
+		}
+
+		const deleted = await this.eventModel.findByIdAndDelete(eventObjectId).lean().exec();
+		if (!deleted) {
+			throw new NotFoundException("Event not found");
+		}
+
 		return deleted;
 	}
 

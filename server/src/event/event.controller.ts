@@ -121,8 +121,13 @@ export class EventController {
 	@ApiResponse({ status: 403, description: "Rôle insuffisant pour cette action." })
 	@ApiResponse({ status: 404, description: "Événement introuvable." })
 	async delete(@Param("id") idEvent: string) {
-		const deleted = await this.eventService.deleteEvent(idEvent);
-		return deleted;
+		const result = await this.eventService.deleteEvent(idEvent);
+
+		if (result?.Status === "Canceled") {
+			return { action: "canceled" };
+		}
+
+		return { action: "deleted" };
 	}
 
 	////// Synchro
