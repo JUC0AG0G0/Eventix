@@ -131,11 +131,26 @@ export class EventService {
 		return deleted;
 	}
 
-	// Patch nbplace envoyer un nb pour changer la capacité d'un événement si le nb de place est inférieur au nb de place deja prise message d'erreur pour impossible d'avoir moins de place que de participant avec le nb minimum
-	// Seulement l'admin peuvent faire ça.
-	// Il faut envoyer l'id de l'évent à modifier
-	async patchEvent(eventId: string, body: UpdateCapacityDto) {
-		const patched = eventId + body.nbplace;
-		return patched;
+	async patchEvent(id: string, body: UpdateCapacityDto) {
+		const event = await this.eventModel.findById(id);
+
+		if (!event) {
+			throw new NotFoundException("Événement introuvable.");
+		}
+
+		const newCapacity = body.nbplace;
+
+		if (newCapacity < event.nbPlaceOccupe) {
+			throw new BadRequestException(
+				"La nouvelle capacité ne peut pas être inférieure au nombre de places déjà occupées.",
+			);
+		}
+
+		event.nbPlaceTotal = newCapacity;
+		event.EditDate = new Date();
+
+		await event.save();
+
+		return;
 	}
 }
