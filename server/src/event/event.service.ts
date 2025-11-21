@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { Event, EventDocument } from "./event.schema";
+import { UpdateCapacityDto } from "./dto/update-capacity.dto";
 
 @Injectable()
 export class EventService {
@@ -85,5 +86,18 @@ export class EventService {
 		}
 
 		return updated;
+	}
+
+	async deleteEvent(eventId: string) {
+		const deleted = eventId;
+		return deleted;
+	}
+
+	// Patch nbplace envoyer un nb pour changer la capacité d'un événement si le nb de place est inférieur au nb de place deja prise message d'erreur pour impossible d'avoir moins de place que de participant avec le nb minimum
+	// Seulement l'admin peuvent faire ça.
+	// Il faut envoyer l'id de l'évent à modifier
+	async patchEvent(eventId: string, body: UpdateCapacityDto) {
+		const patched = eventId + body.nbplace;
+		return patched;
 	}
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBody } from "@nestjs/swagger";
 import { plainToInstance } from "class-transformer";
 import { EventService } from "./event.service";
@@ -9,6 +9,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { JwtPayload } from "../auth/strategies/jwt.strategy";
 import { RegisterEventDto } from "./dto/register-event.dto";
 import { RolesGuard } from "../auth/roles.guard";
+import { UpdateCapacityDto } from "./dto/update-capacity.dto";
 
 @ApiTags("Events")
 @UseGuards(JwtAuthGuard)
@@ -74,9 +75,55 @@ export class EventController {
 		return updated;
 	}
 
-	////// Edition ADMIN
-	// Patch nbplace
-	// Delete event
+	@Patch(":id")
+	@UseGuards(RolesGuard)
+	@Roles("admin")
+	@ApiOperation({
+		summary: "Modifier la capacité d'un événement (nbplace)",
+		description:
+			"Permet à un administrateur de modifier la capacité maximale (nbplace) d'un événement. " +
+			"La mise à jour est refusée si la nouvelle capacité est inférieure au nombre de participants déjà inscrits ou au minimum autorisé.",
+	})
+	@ApiBody({
+		type: UpdateCapacityDto,
+		description: "Corps contenant la nouvelle capacité (nbplace).",
+	})
+	@ApiResponse({ status: 204, description: "Capacité mise à jour avec succès." })
+	@ApiResponse({ status: 400, description: "Nouvelle capacité invalide ou inférieure au nombre d'inscrits." })
+	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
+	@ApiResponse({ status: 403, description: "Rôle insuffisant pour cette action." })
+	@ApiResponse({ status: 404, description: "Événement introuvable." })
+	async updateCapacity(@Param("id") idEvent: string, @Body() body: UpdateCapacityDto) {
+		const patched = await this.eventService.patchEvent(idEvent, body);
+		return patched;
+	}
+
+	@Delete(":id")
+	@UseGuards(RolesGuard)
+	@Roles("admin")
+	@ApiOperation({
+		summary: "Suppression ou annulation d'un événement",
+		description:
+			"Supprime totalement l'événement s'il n'a aucun inscrit. Si des participants sont enregistrés, l'événement est marqué comme annulé au lieu d'être supprimé.",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Indique si l'événement a été supprimé ou annulé.",
+		schema: {
+			example: { action: "deleted" },
+		},
+	})
+	@ApiResponse({
+		status: 400,
+		description: "Requête invalide ou état de l'événement incompatible.",
+	})
+	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
+	@ApiResponse({ status: 403, description: "Rôle insuffisant pour cette action." })
+	@ApiResponse({ status: 404, description: "Événement introuvable." })
+	async delete(@Param("id") idEvent: string) {
+		const deleted = await this.eventService.deleteEvent(idEvent);
+		return deleted;
+	}
 
 	////// Synchro
 	// Get
