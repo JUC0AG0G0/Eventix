@@ -19,10 +19,14 @@ export class EventService {
 			this.eventModel.countDocuments().exec(),
 		]);
 
+		const docsWithStringId = docs.map((d) => ({
+			...d,
+			_id: d._id instanceof Types.ObjectId ? d._id.toHexString() : d._id,
+		}));
 		const pageCount = Math.ceil(total / limit);
 
 		return {
-			docs,
+			docs: docsWithStringId,
 			meta: {
 				total,
 				page: Math.max(page, 1),
