@@ -51,6 +51,21 @@ export class EventController {
 		return { data, meta };
 	}
 
+	@Get(":id")
+	@ApiOperation({
+		summary: "Récupère un événement par son identifiant",
+		description: "Retourne l'événement correspondant à l'identifiant fourni. Nécessite d'être authentifié.",
+	})
+	@ApiResponse({ status: 200, description: "Événement trouvé.", type: EventDto })
+	@ApiResponse({ status: 400, description: "Identifiant invalide." })
+	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
+	@ApiResponse({ status: 404, description: "Événement introuvable." })
+	async getEventById(@Param("id") idEvent: string): Promise<EventDto> {
+		const event = await this.eventService.findById(idEvent);
+
+		return plainToInstance(EventDto, event, { excludeExtraneousValues: true });
+	}
+
 	@Post("register")
 	@UseGuards(RolesGuard)
 	@Roles("user")

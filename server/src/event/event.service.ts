@@ -36,6 +36,26 @@ export class EventService {
 		};
 	}
 
+	async findById(eventId: string) {
+		if (!Types.ObjectId.isValid(eventId)) {
+			throw new BadRequestException("Invalid event id");
+		}
+
+		const eventObjectId = new Types.ObjectId(eventId);
+
+		const event = await this.eventModel.findById(eventObjectId).lean().exec();
+		if (!event) {
+			throw new NotFoundException("Event not found");
+		}
+
+		const eventWithStringId = {
+			...event,
+			_id: event._id instanceof Types.ObjectId ? event._id.toHexString() : event._id,
+		};
+
+		return eventWithStringId;
+	}
+
 	async registerUser(eventId: string, userId: string) {
 		if (!Types.ObjectId.isValid(eventId)) {
 			throw new NotFoundException("Event not found");
