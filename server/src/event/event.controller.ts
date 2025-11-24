@@ -78,18 +78,16 @@ export class EventController {
 		description: "DTO contenant l'identifiant de l'événement auquel s'inscrire",
 	})
 	@ApiResponse({
-		status: 200,
+		status: 201,
 		description: "Inscription réussie, retourne l'événement mis à jour.",
-		type: EventDto,
 	})
 	@ApiResponse({ status: 400, description: "Événement complet." })
 	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
 	@ApiResponse({ status: 403, description: "Rôle insuffisant pour cette action." })
 	@ApiResponse({ status: 404, description: "Événement introuvable." })
 	async register(@Body() dto: RegisterEventDto, @CurrentUser() user: JwtPayload) {
-		const userId = user.sub;
-		const updated = await this.eventService.registerUser(dto.id, String(userId));
-		return updated;
+		await this.eventService.registerUser(dto.id, String(user.sub));
+		return;
 	}
 
 	@Patch(":id")
