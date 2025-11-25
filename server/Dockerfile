@@ -19,6 +19,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Enlever les deps de dev pour n'avoir que la prod dans node_modules
+# (optionnel mais recommandé pour alléger l'image finale)
+RUN npm prune --production
+
 # ---------- Production stage ----------
 FROM node:20-alpine AS runner
 
@@ -31,14 +35,9 @@ WORKDIR /app
 # Installer curl pour healthcheck (root)
 RUN apk add --no-cache curl
 
-# Installer dépendances de prod
-COPY package*.json ./
-RUN npm ci --omit=dev --prefer-offline --no-audit --no-fund
-
-# Copier le build depuis builder
+# Copier le build + node_modules depuis builder (aucun package*.json copié ici)
 COPY --from=builder /app/dist ./dist
-
-# Copier dossiers runtime (sûrs car garantis dans builder)
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 
