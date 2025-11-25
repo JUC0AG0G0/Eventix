@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile
       args:
         NODE_ENV: production
-    image: "${PROJECT_NAME:-eventix}-backend:latest"
+    image: ghcr.io/JUC0AG0G0/eventix-api:latest
     container_name: "${PROJECT_NAME:-eventix}-backend-prod"
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
