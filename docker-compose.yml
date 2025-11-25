@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Backend NestJS — build local ou utilise une image taggée en CI
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    image: ghcr.io/JUC0AG0G0/eventix-api:latest
+    container_name: "${PROJECT_NAME:-eventix}-backend-prod"
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - SERVER_PORT=${SERVER_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SWAGGER_ENABLED=${SWAGGER_ENABLED}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - prod-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -fsS http://localhost:${SERVER_PORT}/health || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # MongoDB (prod) — données persistantes via volume nommé
+  mongodb:
+    image: mongo:7.0
+    container_name: "${PROJECT_NAME:-eventix}-mongodb-prod"
+    ports:
+      - "${MONGO_PORT}:27017"
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - eventix_mongodb_prod_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - prod-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "mongosh --quiet --eval 'db.getName()' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  eventix_mongodb_prod_data:
+    driver: local
+
+networks:
+  prod-network:
+    driver: bridge

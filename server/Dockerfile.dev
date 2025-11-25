@@ -1,0 +1,23 @@
+# Image Node.js Alpine (légère)
+FROM node:20-alpine
+
+# Installer les outils de développement
+RUN apk add --no-cache git curl
+
+# Créer le répertoire de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances en premier (cache Docker)
+COPY package*.json ./
+
+# Installer TOUTES les dépendances (y compris devDependencies)
+RUN npm ci
+
+# Copier le code source
+COPY . .
+
+# Exposer les ports
+EXPOSE ${SERVER_PORT}
+
+# Commande de développement avec hot reload
+CMD ["npm", "run", "start:dev"]
