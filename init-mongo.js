@@ -24,10 +24,10 @@ const now = new Date();
 
 const users = [
     {
-        email: "admin@eventix.fr",
+        email: "admin@example.com",
         firstName: "Admin",
         lastName: "Eventix",
-        passwordHash: "$2b$10$8K1p/a0drtAzjSKe6QI8POAhOVQ8XNpJ7r3p8YqKt2cR4gD7eZ8V2",
+        passwordHash: "$2b$10$B2D4b1WabzRiwTXsKiMbMuZ8cyUIUFfo4h7qhiG/6I1YTZ9HsHLdS",
         role: "admin",
         createdAt: now,
         updatedAt: now,
