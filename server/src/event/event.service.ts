@@ -36,21 +36,29 @@ export class EventService {
 		};
 	}
 
-	async findById(eventId: string) {
+	async findById(eventId: string, userId: string) {
 		if (!Types.ObjectId.isValid(eventId)) {
 			throw new BadRequestException("Invalid event id");
 		}
+		if (!Types.ObjectId.isValid(userId)) {
+			throw new BadRequestException("Invalid user id");
+		}
 
 		const eventObjectId = new Types.ObjectId(eventId);
+		const userObjectId = new Types.ObjectId(userId);
 
 		const event = await this.eventModel.findById(eventObjectId).lean().exec();
 		if (!event) {
 			throw new NotFoundException("Event not found");
 		}
 
+		const inscritIds = (event.personneInscrites || []).map((id: any) => String(id));
+		const alreadyRegister = inscritIds.includes(String(userObjectId));
+
 		const eventWithStringId = {
 			...event,
 			_id: event._id instanceof Types.ObjectId ? event._id.toHexString() : event._id,
+			AlreadyRegister: alreadyRegister,
 		};
 
 		return eventWithStringId;

@@ -60,8 +60,8 @@ export class EventController {
 	@ApiResponse({ status: 400, description: "Identifiant invalide." })
 	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
 	@ApiResponse({ status: 404, description: "Événement introuvable." })
-	async getEventById(@Param("id") idEvent: string): Promise<EventDto> {
-		const event = await this.eventService.findById(idEvent);
+	async getEventById(@Param("id") idEvent: string, @CurrentUser() user: JwtPayload): Promise<EventDto> {
+		const event = await this.eventService.findById(idEvent, String(user.sub));
 
 		return plainToInstance(EventDto, event, { excludeExtraneousValues: true });
 	}
