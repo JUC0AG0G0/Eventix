@@ -33,6 +33,10 @@ export class EventDto {
 	@ApiProperty({ example: "2025-09-14T08:43:28.719Z", type: String })
 	@Expose()
 	EditDate: Date;
+
+	@ApiProperty({ example: "true", type: Boolean })
+	@Expose()
+	AlreadyRegister?: boolean;
 }
 
 export class PaginatedEventsDto {
