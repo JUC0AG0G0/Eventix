@@ -11,25 +11,42 @@ import { EventDto } from "./dto/event.dto";
 export class EventService {
 	constructor(@InjectModel(Event.name) private readonly eventModel: Model<EventDocument>) {}
 
-	async findPaginatedRaw(page = 1, limit = 10) {
-		const skip = (Math.max(page, 1) - 1) * limit;
+	async findPaginatedRaw(page = 1, limit = 10, userId?: string) {
+		const pageNumber = Math.max(page, 1);
+		const skip = (pageNumber - 1) * limit;
+
+		let userObjectId: Types.ObjectId | null = null;
+		if (userId) {
+			if (!Types.ObjectId.isValid(userId)) {
+				throw new BadRequestException("Invalid user id");
+			}
+			userObjectId = new Types.ObjectId(userId);
+		}
 
 		const [docs, total] = await Promise.all([
 			this.eventModel.find().sort({ EditDate: -1 }).skip(skip).limit(limit).lean().exec(),
+
 			this.eventModel.countDocuments().exec(),
 		]);
 
-		const docsWithStringId = docs.map((d) => ({
-			...d,
-			_id: d._id instanceof Types.ObjectId ? d._id.toHexString() : d._id,
-		}));
+		const docsWithStringId = docs.map((event) => {
+			const inscritIds = (event.personneInscrites || []).map((id: any) => String(id));
+			const alreadyRegister = userObjectId ? inscritIds.includes(String(userObjectId)) : false;
+
+			return {
+				...event,
+				_id: event._id instanceof Types.ObjectId ? event._id.toHexString() : event._id,
+				AlreadyRegister: alreadyRegister,
+			};
+		});
+
 		const pageCount = Math.ceil(total / limit);
 
 		return {
 			docs: docsWithStringId,
 			meta: {
 				total,
-				page: Math.max(page, 1),
+				page: pageNumber,
 				limit,
 				pageCount,
 			},

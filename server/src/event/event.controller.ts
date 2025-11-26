@@ -38,11 +38,13 @@ export class EventController {
 		description: "Liste paginée des événements (sans la liste des personnes inscrites).",
 		type: PaginatedEventsDto,
 	})
-	async getEvents(@Query("page") pageQuery?: string): Promise<PaginatedEventsDto> {
+	async getEvents(@Query("page") pageQuery?: string, @CurrentUser() user?: JwtPayload): Promise<PaginatedEventsDto> {
 		const page = pageQuery ? parseInt(pageQuery, 10) : 1;
 		const pageNumber = Number.isFinite(page) && page > 0 ? page : 1;
 
-		const { docs, meta } = await this.eventService.findPaginatedRaw(pageNumber, 10);
+		const userId = user ? String(user.sub) : undefined;
+
+		const { docs, meta } = await this.eventService.findPaginatedRaw(pageNumber, 10, userId);
 
 		const data = plainToInstance(EventDto, docs, {
 			excludeExtraneousValues: true,
