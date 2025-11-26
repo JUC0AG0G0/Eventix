@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -15,15 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventix.network.ApiRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 
@@ -33,6 +36,13 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
     val context = LocalContext.current
     var eventData by remember { mutableStateOf<JSONObject?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+
+    // Nouveaux états pour l'inscription
+    var isRegistering by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    // scope pour lancer des coroutines depuis des handlers (onClick, etc.)
+    val coroutineScope = rememberCoroutineScope()
 
     val role = remember { prefs.getString("role", "") ?: "" }
 
@@ -61,6 +71,33 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
             navigateToMain(navController)
         } finally {
             isLoading = false
+        }
+    }
+
+    // Fonction locale pour appeler l'API d'inscription (utilise les extensions modernes)
+    suspend fun performRegistration(): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val bodyJson = JSONObject().put("id", eventId).toString()
+            val body = bodyJson.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(ApiRoutes.EVENT_REGISTER)
+                .addHeader("Authorization", "Bearer $token")
+                .post(body)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (resp.isSuccessful) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
         }
     }
 
@@ -103,7 +140,6 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        // Titre de l'événement souligné en orange
                         Text(
                             data.optString("Nom"),
                             style = MaterialTheme.typography.headlineSmall,
@@ -113,13 +149,12 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Box(
                             modifier = Modifier
                                 .height(3.dp)
-                                .width(80.dp) // ligne un peu plus longue
+                                .width(80.dp)
                                 .background(Color(0xFFFF9800))
                                 .align(Alignment.Start)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Section description
                         Text(
                             "Description",
                             style = MaterialTheme.typography.titleMedium,
@@ -129,7 +164,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Box(
                             modifier = Modifier
                                 .height(3.dp)
-                                .width(50.dp) // ligne plus courte que le titre
+                                .width(50.dp)
                                 .background(Color(0xFFFF9800))
                                 .align(Alignment.Start)
                         )
@@ -137,25 +172,87 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Text("Rôle : ${role.ifEmpty { "non défini" }}", style = MaterialTheme.typography.bodyLarge)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.weight(1f))
 
-                        Spacer(modifier = Modifier.weight(1f)) // pousse le bouton en bas
+                        // --- LOGIQUE D'ACTIVATION DU BOUTON ---
+                        val status = data.optString("Status", "").lowercase() // ex: "ok", "full", "cancelled"
+                        val alreadyRegistered = data.optBoolean("AlreadyRegister", false)
+                        val canRegister = status == "ok" && !alreadyRegistered && !isRegistering
 
                         when (role.lowercase()) {
                             "user" -> {
+                                // Bouton principal
                                 Button(
                                     onClick = {
-                                        Toast.makeText(context, "Inscription demandée", Toast.LENGTH_SHORT).show()
+                                        if (canRegister) showConfirmDialog = true
                                     },
+                                    enabled = canRegister,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFFF9800)
+                                        containerColor = Color(0xFFFF9800),
+                                        disabledContainerColor = Color(0xFFE0A85A)
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(56.dp)
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                 ) {
-                                    Text("Inscription")
+                                    if (isRegistering) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Inscription…")
+                                    } else {
+                                        Text(
+                                            when {
+                                                alreadyRegistered -> "Déjà inscrit"
+                                                status != "ok" -> when (status) {
+                                                    "full", "complet" -> "Complet"
+                                                    "cancelled", "annulé" -> "Annulé"
+                                                    else -> "Inscription indisponible"
+                                                }
+                                                else -> "S'inscrire"
+                                            }
+                                        )
+                                    }
+                                }
+
+                                // Dialog de confirmation
+                                if (showConfirmDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { if (!isRegistering) showConfirmDialog = false },
+                                        title = { Text("Confirmer l'inscription") },
+                                        text = { Text("Voulez-vous confirmer votre inscription à \"${data.optString("Nom")}\" ?") },
+                                        confirmButton = {
+                                            TextButton(
+                                                onClick = {
+                                                    showConfirmDialog = false
+                                                    isRegistering = true
+                                                    coroutineScope.launch {
+                                                        val (ok, errorMsg) = performRegistration()
+                                                        isRegistering = false
+                                                        if (ok) {
+                                                            try {
+                                                                eventData = JSONObject(data.toString()).put("AlreadyRegister", true)
+                                                            } catch (_: Exception) {}
+                                                            navController.navigate(successRouteFor(SuccessType.REGISTRATION))
+                                                        } else {
+                                                            Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                },
+                                                enabled = !isRegistering
+                                            ) {
+                                                Text("Confirmer")
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { showConfirmDialog = false }) {
+                                                Text("Annuler")
+                                            }
+                                        }
+                                    )
                                 }
                             }
 
@@ -168,22 +265,16 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(56.dp)
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                 ) {
                                     Text("Enregistrer")
                                 }
                             }
 
                             else -> {
-                                OutlinedButton(
-                                    onClick = { },
-                                    enabled = false,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp)
-                                ) {
-                                    Text("Action non disponible")
-                                }
+                                // rôle inconnu : retourne au main
+                                LaunchedEffect(Unit) { navigateToMain(navController) }
                             }
                         }
                     }
