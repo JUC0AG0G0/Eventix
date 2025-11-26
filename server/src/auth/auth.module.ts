@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { JwtModule, JwtModuleOptions } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -10,6 +10,7 @@ import { SignOptions } from "jsonwebtoken";
 
 @Module({
 	imports: [
+		forwardRef(() => UsersModule),
 		ConfigModule,
 		PassportModule,
 		JwtModule.registerAsync({
@@ -36,7 +37,6 @@ import { SignOptions } from "jsonwebtoken";
 				};
 			},
 		}),
-		UsersModule,
 	],
 	providers: [AuthService, JwtStrategy],
 	controllers: [AuthController],
