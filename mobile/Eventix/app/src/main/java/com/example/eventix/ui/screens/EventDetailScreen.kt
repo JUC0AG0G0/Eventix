@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,8 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
     val context = LocalContext.current
     var eventData by remember { mutableStateOf<JSONObject?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+
+    val role = remember { prefs.getString("role", "") ?: "" }
 
     LaunchedEffect(eventId) {
         val token = prefs.getString("access_token", null)
@@ -66,13 +69,16 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 navigationIcon = {
                     IconButton(onClick = { navigateToMain(navController) }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
-                    };
-                    @androidx.compose.runtime.Composable { Icon(Icons.Filled.ArrowBack, contentDescription = "Retour") }
+                    }
                 }
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
@@ -87,15 +93,75 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             Image(
                                 painter = rememberAsyncImagePainter(imageUrl),
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxWidth().height(250.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(250.dp),
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                         }
+
                         Text(data.optString("Nom"), style = MaterialTheme.typography.headlineSmall)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text("Rôle : ${role.ifEmpty { "non défini" }}", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Spacer(modifier = Modifier.weight(1f)) // pousse le bouton en bas
+
+                        when (role.lowercase()) {
+                            "user" -> {
+                                Button(
+                                    onClick = {
+                                        Toast.makeText(context, "Inscription demandée", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFFF9800)
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                ) {
+                                    Text("Inscription")
+                                }
+                            }
+
+                            "admin" -> {
+                                Button(
+                                    onClick = { },
+                                    enabled = false,
+                                    colors = ButtonDefaults.buttonColors(
+                                        disabledContainerColor = Color(0xFFFFC107)
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                ) {
+                                    Text("Enregistrer")
+                                }
+                            }
+
+                            else -> {
+                                OutlinedButton(
+                                    onClick = { },
+                                    enabled = false,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                ) {
+                                    Text("Action non disponible")
+                                }
+                            }
+                        }
                     }
+                } ?: run {
+                    Text(
+                        "Événement introuvable",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
             }
         }

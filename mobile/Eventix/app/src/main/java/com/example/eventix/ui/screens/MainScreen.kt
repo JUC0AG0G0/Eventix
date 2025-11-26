@@ -324,6 +324,7 @@ fun EventCard(event: Event, onClick: () -> Unit) {
 private fun logout(context: Context, navController: NavController) {
     val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     prefs.edit().remove("access_token").apply()
+    prefs.edit().remove("role").apply()
 
     navController.navigate("login") {
         popUpTo("main") { inclusive = true }
