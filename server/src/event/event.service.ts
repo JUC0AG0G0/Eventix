@@ -162,7 +162,7 @@ export class EventService {
 			const updated = await this.eventModel
 				.findOneAndUpdate(
 					{ _id: eventObjectId, Status: "Ok" },
-					{ $set: { Status: "Canceled", EditDate: new Date() } },
+					{ $set: { Status: "Cancelled", EditDate: new Date() } },
 					{ new: true } as const,
 				)
 				.lean()
