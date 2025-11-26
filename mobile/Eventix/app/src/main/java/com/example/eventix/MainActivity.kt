@@ -50,7 +50,8 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("eventId") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
-                        EventDetailScreen(navController = navController, eventId = eventId)
+                        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+                        EventDetailScreen(navController = navController, eventId = eventId, prefs = prefs)
                     }
                 }
             }
