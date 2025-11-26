@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -88,6 +89,15 @@ class MainActivity : ComponentActivity() {
 
                 if (response.isSuccessful) {
                     // Token valide → MainScreen
+
+                    // Enregistrement du role de l'utilisateur
+                    val responseBody = response.body?.string()
+                    val role = JSONObject(responseBody!!).getString("role")
+
+                    prefs.edit()
+                        .putString("role", role)
+                        .apply()
+
                     withContext(Dispatchers.Main) {
                         navController.navigate("main") {
                             popUpTo("login") { inclusive = true }
