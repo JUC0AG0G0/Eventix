@@ -2,6 +2,7 @@ package com.example.eventix.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -101,7 +103,36 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        Text(data.optString("Nom"), style = MaterialTheme.typography.headlineSmall)
+                        // Titre de l'événement souligné en orange
+                        Text(
+                            data.optString("Nom"),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .height(3.dp)
+                                .width(80.dp) // ligne un peu plus longue
+                                .background(Color(0xFFFF9800))
+                                .align(Alignment.Start)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Section description
+                        Text(
+                            "Description",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Box(
+                            modifier = Modifier
+                                .height(3.dp)
+                                .width(50.dp) // ligne plus courte que le titre
+                                .background(Color(0xFFFF9800))
+                                .align(Alignment.Start)
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
