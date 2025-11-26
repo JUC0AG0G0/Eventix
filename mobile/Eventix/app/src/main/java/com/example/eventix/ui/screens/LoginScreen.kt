@@ -98,7 +98,14 @@ fun LoginScreen(navController: NavController) {
             onValueChange = { email = it },
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -108,7 +115,14 @@ fun LoginScreen(navController: NavController) {
             onValueChange = { password = it },
             label = { Text("Password") },
             modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = PasswordVisualTransformation(),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -99,7 +99,14 @@ fun InscriptionScreen(navController: NavController) {
             value = nom,
             onValueChange = { nom = it },
             label = { Text("Nom") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -108,7 +115,14 @@ fun InscriptionScreen(navController: NavController) {
             value = prenom,
             onValueChange = { prenom = it },
             label = { Text("Prénom") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -118,7 +132,14 @@ fun InscriptionScreen(navController: NavController) {
             onValueChange = { email = it },
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -128,7 +149,14 @@ fun InscriptionScreen(navController: NavController) {
             onValueChange = { password = it },
             label = { Text("Mot de passe") },
             modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = PasswordVisualTransformation(),
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = orange,
+                unfocusedIndicatorColor = Color.LightGray,
+                focusedLabelColor = orange,
+                unfocusedLabelColor = Color.Gray,
+                cursorColor = orange
+            )
         )
 
         Spacer(modifier = Modifier.height(24.dp))
