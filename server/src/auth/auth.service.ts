@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { forwardRef, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { UsersService } from "../users/users.service";
 import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
@@ -63,6 +63,7 @@ function toPublicRecord(obj: unknown): Record<string, unknown> | null {
 @Injectable()
 export class AuthService {
 	constructor(
+		@Inject(forwardRef(() => UsersService))
 		private readonly usersService: UsersService,
 		private readonly jwtService: JwtService,
 	) {}

@@ -1,9 +1,10 @@
-import { Injectable, ConflictException, InternalServerErrorException } from "@nestjs/common";
+import { Injectable, ConflictException, InternalServerErrorException, Inject, forwardRef } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import * as bcrypt from "bcrypt";
 import { UserDocument, User } from "./user.schema";
 import { RegisterUserDto } from "./dto/register-user.dto";
+import { AuthService } from "../auth/auth.service";
 
 type MaybeMongoDuplicateError = {
 	code?: number | string;
@@ -16,7 +17,11 @@ function isMongoDuplicateError(err: unknown): err is MaybeMongoDuplicateError {
 
 @Injectable()
 export class UsersService {
-	constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+	constructor(
+		@InjectModel(User.name) private userModel: Model<UserDocument>,
+		@Inject(forwardRef(() => AuthService))
+		private readonly authService: AuthService,
+	) {}
 
 	async create(dto: RegisterUserDto) {
 		const { email, password, firstName, lastName } = dto;
@@ -37,7 +42,9 @@ export class UsersService {
 				passwordHash,
 				role: "user",
 			});
-			return await created.save();
+
+			await created.save();
+			return this.authService.loginWithCredentials(email, password);
 		} catch (err: unknown) {
 			if (isMongoDuplicateError(err) && (err.code === 11000 || err.code === "11000")) {
 				const dupField = err.keyValue ? Object.keys(err.keyValue).join(", ") : "email";

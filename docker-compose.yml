@@ -47,8 +47,6 @@ services:
   mongodb:
     image: mongo:7.0
     container_name: "${PROJECT_NAME:-eventix}-mongodb-prod"
-    ports:
-      - "${MONGO_PORT}:27017"
     env_file:
       - .env
     environment:
