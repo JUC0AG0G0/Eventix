@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,10 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
     // états locaux de places (initialisés une fois eventData chargé)
     var nbPlaceTotalState by remember { mutableStateOf(1) }
     var nbPlaceOccupeState by remember { mutableStateOf(0) }
+
+    // Nouveaux états pour suppression
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
 
     // scope pour lancer des coroutines depuis des handlers (onClick, etc.)
     val coroutineScope = rememberCoroutineScope()
@@ -118,28 +123,48 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
         }
     }
 
-    // --- NOUVEAU: fonction pour mettre à jour le nombre de places (admin) ---
-    // NOTE: adapte ApiRoutes.EVENT_UPDATE ou l'endpoint / payload selon ton backend.
     suspend fun performUpdateCapacity(newTotal: Int): Pair<Boolean, String?> {
         val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
         return try {
             val client = OkHttpClient()
             val mediaType = "application/json; charset=utf-8".toMediaType()
-            // payload d'exemple — adapte les clés au back-end attendu
             val bodyJson = JSONObject()
                 .put("nbplace", newTotal)
                 .toString()
             val body = bodyJson.toRequestBody(mediaType)
 
-            // CHANGE THIS: si ApiRoutes a une route spécifique pour update, utilise-la.
             val request = Request.Builder()
-                .url(ApiRoutes.updateEventCapacity(eventId)) // <-- adapte si besoin
+                .url(ApiRoutes.updateEventCapacity(eventId))
                 .addHeader("Authorization", "Bearer $token")
-                .patch(body) // ou put(...) si ton API attend PUT
+                .patch(body)
                 .build()
 
             val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
             if (resp.isSuccessful) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
+        }
+    }
+
+    suspend fun performDeleteEvent(): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val emptyBody = "".toRequestBody(mediaType)
+            val request = Request.Builder()
+                .url(ApiRoutes.deleteEvent(eventId))
+                .addHeader("Authorization", "Bearer $token")
+                .delete(emptyBody)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (resp.isSuccessful && resp.code == 200) {
                 Pair(true, null)
             } else {
                 val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
@@ -157,6 +182,13 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 navigationIcon = {
                     IconButton(onClick = { navigateToMain(navController) }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (role.lowercase() == "admin") {
+                        IconButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Supprimer l'événement")
+                        }
                     }
                 }
             )
@@ -443,6 +475,59 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                     )
                 }
             }
+        }
+
+        // --- Dialog de confirmation pour la suppression (accessible depuis l'IconButton poubelle) ---
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { if (!isDeleting) showDeleteConfirm = false },
+                title = { Text("Supprimer l'événement") },
+                text = { Text("Voulez-vous vraiment supprimer l'événement \"${eventData?.optString("Nom") ?: ""}\" ? Cette action est irréversible.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // lancer la suppression
+                            isDeleting = true
+                            coroutineScope.launch {
+                                val (ok, errorMsg) = performDeleteEvent()
+                                isDeleting = false
+                                showDeleteConfirm = false
+                                if (ok) {
+                                    // redirige vers la page success cancellation
+                                    navController.navigate(successRouteFor(SuccessType.CANCELLATION))
+                                } else {
+                                    Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        if (isDeleting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Suppression…")
+                        } else {
+                            Text("Supprimer")
+                        }
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = { if (!isDeleting) showDeleteConfirm = false },
+                        enabled = !isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Annuler")
+                    }
+                }
+            )
         }
     }
 }
