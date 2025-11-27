@@ -104,6 +104,12 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
+      - name: Set up keystore
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > ${{ github.workspace }}/eventix.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
       - name: Build APK (release)
         working-directory: ${{ env.APP_DIR }}
         run: |
