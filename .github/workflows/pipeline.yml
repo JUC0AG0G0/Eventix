@@ -94,7 +94,7 @@ jobs:
           java-version: '17'
 
       # NOTE: l'action setup-android@v2 n'accepte pas toujours des inputs. Si tu veux garder un step d'installation, mets-le sans inputs :
-      - name: Optional: Set up Android SDK (no inputs to avoid warnings)
+      - name: Optional Set up Android SDK (no inputs to avoid warnings)
         uses: android-actions/setup-android@v2
 
       - name: Cache Gradle
