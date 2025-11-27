@@ -32,7 +32,7 @@ fun LoginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     val context = LocalContext.current
-    val orange = Color(0xFF4CFF00)
+    val orange = Color(0xFFFF9800)
 
     fun login() {
         if (email.isBlank() || password.isBlank()) {
