@@ -129,11 +129,11 @@ jobs:
           name: eventix-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
 
-      # Set release token: prefer PAT_RELEASE (if present), otherwise use built-in GITHUB_TOKEN
-      - name: Set RELEASE_TOKEN (PAT_RELEASE or fallback to GITHUB_TOKEN)
+      # Set release token: prefer GHCR_PAT (if present), otherwise use built-in GITHUB_TOKEN
+      - name: Set RELEASE_TOKEN (GHCR_PAT or fallback to GITHUB_TOKEN)
         run: |
-          if [ -n "${{ secrets.PAT_RELEASE }}" ]; then
-            echo "RELEASE_TOKEN=${{ secrets.PAT_RELEASE }}" >> $GITHUB_ENV
+          if [ -n "${{ secrets.GHCR_PAT }}" ]; then
+            echo "RELEASE_TOKEN=${{ secrets.GHCR_PAT }}" >> $GITHUB_ENV
           else
             echo "RELEASE_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
           fi
