@@ -355,13 +355,22 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                     } else {
                                         Text(
                                             when {
-                                                alreadyRegistered -> "Déjà inscrit"
-                                                status != "ok" -> when (status) {
-                                                    "full", "complet" -> "Complet"
-                                                    "cancelled", "annulé" -> "Annulé"
-                                                    else -> "Inscription indisponible"
-                                                }
-                                                else -> "S'inscrire"
+                                                status.equals("cancelled", ignoreCase = true)
+                                                        || status.equals("annulé", ignoreCase = true) ->
+                                                    "Annulé"
+
+                                                alreadyRegistered ->
+                                                    "Déjà inscrit"
+
+                                                status.equals("full", ignoreCase = true)
+                                                        || status.equals("complet", ignoreCase = true) ->
+                                                    "Complet"
+
+                                                status != "ok" ->
+                                                    "Inscription indisponible"
+
+                                                else ->
+                                                    "S'inscrire"
                                             }
                                         )
                                     }
