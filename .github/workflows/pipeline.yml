@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -79,7 +79,7 @@ jobs:
   build_apk:
     name: Build Android APK & Publish Release
     runs-on: ubuntu-latest
-    needs: build_and_publish
+    needs: deploy
     env:
       # chemins relatifs dans ton repo
       APP_DIR: mobile/Eventix
