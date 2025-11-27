@@ -11,7 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -221,6 +221,9 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
+
+                        Spacer(modifier = Modifier.weight(1f))
+
                         // --- Section admin: compteur nb places + boutons + Enregistrer ---
                         if (role.lowercase() == "admin") {
                             // calcul du minimum autorisé : >= 1 et >= nbPlaceOccupeState
@@ -245,7 +248,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                     },
                                     enabled = nbPlaceTotalState > minAllowed
                                 ) {
-                                    Icon(Icons.Filled.ArrowBack, contentDescription = "Diminuer")
+                                    Icon(Icons.Filled.Remove, contentDescription = "Diminuer")
                                 }
 
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -300,8 +303,8 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                 },
                                 enabled = capacityDirty && !isUpdatingCapacity,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (capacityDirty) Color(0xFFFF9800) else Color(0xFFFFC107),
-                                    disabledContainerColor = Color(0xFFFFC107)
+                                    containerColor = if (capacityDirty) Color(0xFFFF9800) else Color(0xFFE0A85A),
+                                    disabledContainerColor = Color(0xFFE0A85A)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -319,8 +322,6 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
                             Spacer(modifier = Modifier.height(16.dp))
                         }
-
-                        Spacer(modifier = Modifier.weight(1f))
 
                         // --- LOGIQUE D'ACTIVATION DU BOUTON POUR 'user' ---
                         val status = data.optString("Status", "").lowercase() // ex: "ok", "full", "cancelled"
