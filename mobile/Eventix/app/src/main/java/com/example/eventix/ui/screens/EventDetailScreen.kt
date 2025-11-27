@@ -225,7 +225,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                         title = { Text("Confirmer l'inscription") },
                                         text = { Text("Voulez-vous confirmer votre inscription à \"${data.optString("Nom")}\" ?") },
                                         confirmButton = {
-                                            TextButton(
+                                            Button(
                                                 onClick = {
                                                     showConfirmDialog = false
                                                     isRegistering = true
@@ -242,13 +242,23 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                                         }
                                                     }
                                                 },
-                                                enabled = !isRegistering
+                                                enabled = !isRegistering,
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFFFF9800),
+                                                    contentColor = Color.White
+                                                )
                                             ) {
                                                 Text("Confirmer")
                                             }
                                         },
                                         dismissButton = {
-                                            TextButton(onClick = { showConfirmDialog = false }) {
+                                            Button(
+                                                onClick = { showConfirmDialog = false },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFFFF9800),
+                                                    contentColor = Color.White
+                                                )
+                                            ) {
                                                 Text("Annuler")
                                             }
                                         }

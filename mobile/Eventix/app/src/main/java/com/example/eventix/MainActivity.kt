@@ -113,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     // Token invalide ou expiré → supprimer et login
                     prefs.edit().remove("access_token").apply()
+                    prefs.edit().remove("role").apply()
                     withContext(Dispatchers.Main) {
                         navController.navigate("login") {
                             popUpTo("login") { inclusive = true }
