@@ -96,6 +96,12 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
         }
     }
 
+    // isCancelled calculé à chaque recomposition à partir de eventData (supporte "cancelled" et "annulé")
+    val isCancelled = remember(eventData) {
+        val status = eventData?.optString("Status", "") ?: ""
+        status.equals("cancelled", ignoreCase = true) || status.equals("annulé", ignoreCase = true)
+    }
+
     // Fonction locale pour appeler l'API d'inscription (utilise les extensions modernes)
     suspend fun performRegistration(): Pair<Boolean, String?> {
         val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
@@ -186,7 +192,15 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 },
                 actions = {
                     if (role.lowercase() == "admin") {
-                        IconButton(onClick = { showDeleteConfirm = true }) {
+                        // visible mais désactivé si isCancelled
+                        IconButton(
+                            onClick = {
+                                if (!isCancelled) {
+                                    showDeleteConfirm = true
+                                }
+                            },
+                            enabled = !isCancelled
+                        ) {
                             Icon(Icons.Filled.Delete, contentDescription = "Supprimer l'événement")
                         }
                     }
@@ -271,14 +285,15 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             ) {
                                 IconButton(
                                     onClick = {
-                                        // décrémente si possible
-                                        val newVal = (nbPlaceTotalState - 1).coerceAtLeast(minAllowed)
-                                        if (newVal != nbPlaceTotalState) {
-                                            nbPlaceTotalState = newVal
-                                            capacityDirty = true
+                                        if (!isCancelled) {
+                                            val newVal = (nbPlaceTotalState - 1).coerceAtLeast(minAllowed)
+                                            if (newVal != nbPlaceTotalState) {
+                                                nbPlaceTotalState = newVal
+                                                capacityDirty = true
+                                            }
                                         }
                                     },
-                                    enabled = nbPlaceTotalState > minAllowed
+                                    enabled = !isCancelled && nbPlaceTotalState > minAllowed
                                 ) {
                                     Icon(Icons.Filled.Remove, contentDescription = "Diminuer")
                                 }
@@ -300,11 +315,12 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
                                 IconButton(
                                     onClick = {
-                                        // incrémente (pas de plafond)
-                                        nbPlaceTotalState = nbPlaceTotalState + 1
-                                        capacityDirty = true
+                                        if (!isCancelled) {
+                                            nbPlaceTotalState = nbPlaceTotalState + 1
+                                            capacityDirty = true
+                                        }
                                     },
-                                    enabled = true
+                                    enabled = !isCancelled
                                 ) {
                                     Icon(Icons.Filled.Add, contentDescription = "Augmenter")
                                 }
@@ -315,27 +331,29 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             // Bouton Enregistrer (admin)
                             Button(
                                 onClick = {
-                                    // Appel API pour sauvegarder la nouvelle capacité
-                                    isUpdatingCapacity = true
-                                    coroutineScope.launch {
-                                        val (ok, errorMsg) = performUpdateCapacity(nbPlaceTotalState)
-                                        isUpdatingCapacity = false
-                                        if (ok) {
-                                            // Mettre à jour localement eventData pour refléter le changement
-                                            try {
-                                                eventData = JSONObject(data.toString()).put("NbPlaceTotal", nbPlaceTotalState)
-                                                capacityDirty = false
-                                            } catch (_: Exception) {}
-                                            // Navigation vers page success — adapte la route si tu as une util spécifique
-                                            navController.navigate(successRouteFor(SuccessType.UPDATE))
-                                        } else {
-                                            Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                    if (!isCancelled) {
+                                        // Appel API pour sauvegarder la nouvelle capacité
+                                        isUpdatingCapacity = true
+                                        coroutineScope.launch {
+                                            val (ok, errorMsg) = performUpdateCapacity(nbPlaceTotalState)
+                                            isUpdatingCapacity = false
+                                            if (ok) {
+                                                // Mettre à jour localement eventData pour refléter le changement
+                                                try {
+                                                    eventData = JSONObject(data.toString()).put("NbPlaceTotal", nbPlaceTotalState)
+                                                    capacityDirty = false
+                                                } catch (_: Exception) {}
+                                                // Navigation vers page success — adapte la route si tu as une util spécifique
+                                                navController.navigate(successRouteFor(SuccessType.UPDATE))
+                                            } else {
+                                                Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                            }
                                         }
                                     }
                                 },
-                                enabled = capacityDirty && !isUpdatingCapacity,
+                                enabled = capacityDirty && !isUpdatingCapacity && !isCancelled,
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (capacityDirty) Color(0xFFFF9800) else Color(0xFFE0A85A),
+                                    containerColor = if (capacityDirty && !isCancelled) Color(0xFFFF9800) else Color(0xFFE0A85A),
                                     disabledContainerColor = Color(0xFFE0A85A)
                                 ),
                                 modifier = Modifier
@@ -458,7 +476,6 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
                             "admin" -> {
                                 // pour admin, le bouton Enregistrer est géré plus haut (après le compteur)
-                                // On peut éventuellement laisser un footer inactif si nécessaire. Ici, rien à faire.
                             }
 
                             else -> {
