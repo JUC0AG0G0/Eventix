@@ -42,7 +42,7 @@ jobs:
           docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
           wget https://www.myinstants.com/media/sounds/applepay.mp3
           mpv applepay.mp3
-          
+
 
   # --------- JOB 2 : Déploiement sur serveur de PROD ----------
   deploy:
@@ -93,7 +93,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # NOTE: l'action setup-android@v2 n'accepte pas toujours des inputs. Si tu veux garder un step d'installation, mets-le sans inputs :
+      # NOTE: Avoid passing unknown inputs to setup-android to prevent warnings.
       - name: Optional Set up Android SDK (no inputs to avoid warnings)
         uses: android-actions/setup-android@v2
 
@@ -115,7 +115,6 @@ jobs:
         id: find_apk
         run: |
           set -e
-          # Cherche n'importe quel fichier *.apk contenant "release" dans son nom
           APK_PATH=$(find ${{ env.APP_DIR }}/ -type f -iname "*release*.apk" | head -n 1 || true)
           if [ -z "$APK_PATH" ]; then
             echo "ERROR: No release APK found. Listing build output for debug:" >&2
@@ -131,22 +130,26 @@ jobs:
           name: eventix-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
 
-      - name: Create GitHub Release
+      # Use PAT_RELEASE (if provided) as primary token, otherwise fallback to GITHUB_TOKEN.
+      # If your org restricts GITHUB_TOKEN, create a PAT with repo scope and store it as secrets.PAT_RELEASE.
+      - name: Create GitHub Release (softprops)
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: apk-${{ github.sha }}
-          release_name: eventix-apk-${{ github.sha }}
+          name: eventix-apk-${{ github.sha }}
           body: "Automated APK build for commit ${{ github.sha }}"
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_RELEASE != '' && secrets.PAT_RELEASE || secrets.GITHUB_TOKEN }}
 
       - name: Upload APK to Release
-        uses: actions/upload-release-asset@v1
+        uses: actions/upload-release-asset@v2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ steps.find_apk.outputs.apk_path }}
           asset_name: eventix-${{ github.sha }}.apk
           asset_content_type: application/vnd.android.package-archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_RELEASE != '' && secrets.PAT_RELEASE || secrets.GITHUB_TOKEN }}
