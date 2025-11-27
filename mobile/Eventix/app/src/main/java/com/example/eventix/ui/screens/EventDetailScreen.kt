@@ -75,8 +75,8 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 response.body?.string()?.let {
                     eventData = JSONObject(it)
                     // initialisation des états liés aux places si présents dans le JSON
-                    val total = eventData?.optInt("NbPlaceTotal", 1) ?: 1
-                    val occ = eventData?.optInt("NbPlaceOccupe", 0) ?: 0
+                    val total = eventData?.optInt("nbPlaceTotal", 1) ?: 1
+                    val occ = eventData?.optInt("nbPlaceOccupe", 0) ?: 0
                     nbPlaceTotalState = if (total >= 1) total else 1
                     nbPlaceOccupeState = if (occ >= 0) occ else 0
                 }
