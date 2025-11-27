@@ -1,11 +1,12 @@
 package com.example.eventix.network
 
+// const val HOST = "http://192.168.1.35:9010"
+// Host principal
+//const val HOST = "http://10.6.0.2:9010"
+// const val HOST = "http://10.6.251.38:9010"
+const val HOST = "http://10.8.252.10:9010"
+
 object ApiRoutes {
-    // Host principal
-    //const val HOST = "http://10.6.0.2:9010"
-    // const val HOST = "http://10.6.251.38:9010"
-    const val HOST = "http://10.8.251.73:9010"
-    // const val HOST = "http://192.168.1.35:9010"
 
     // Auth
     const val LOGIN = "$HOST/auth/login"

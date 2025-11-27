@@ -10,6 +10,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,14 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
     var isRegistering by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
+    // états pour admin (modification nombre de places)
+    var isUpdatingCapacity by remember { mutableStateOf(false) }
+    var capacityDirty by remember { mutableStateOf(false) } // devient true si admin modifie la valeur
+
+    // états locaux de places (initialisés une fois eventData chargé)
+    var nbPlaceTotalState by remember { mutableStateOf(1) }
+    var nbPlaceOccupeState by remember { mutableStateOf(0) }
+
     // scope pour lancer des coroutines depuis des handlers (onClick, etc.)
     val coroutineScope = rememberCoroutineScope()
 
@@ -62,7 +72,14 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
             }
 
             if (response.isSuccessful) {
-                eventData = response.body?.string()?.let { JSONObject(it) }
+                response.body?.string()?.let {
+                    eventData = JSONObject(it)
+                    // initialisation des états liés aux places si présents dans le JSON
+                    val total = eventData?.optInt("NbPlaceTotal", 1) ?: 1
+                    val occ = eventData?.optInt("NbPlaceOccupe", 0) ?: 0
+                    nbPlaceTotalState = if (total >= 1) total else 1
+                    nbPlaceOccupeState = if (occ >= 0) occ else 0
+                }
             } else {
                 navigateToMain(navController)
             }
@@ -87,6 +104,38 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 .url(ApiRoutes.EVENT_REGISTER)
                 .addHeader("Authorization", "Bearer $token")
                 .post(body)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (resp.isSuccessful) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
+        }
+    }
+
+    // --- NOUVEAU: fonction pour mettre à jour le nombre de places (admin) ---
+    // NOTE: adapte ApiRoutes.EVENT_UPDATE ou l'endpoint / payload selon ton backend.
+    suspend fun performUpdateCapacity(newTotal: Int): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            // payload d'exemple — adapte les clés au back-end attendu
+            val bodyJson = JSONObject()
+                .put("nbplace", newTotal)
+                .toString()
+            val body = bodyJson.toRequestBody(mediaType)
+
+            // CHANGE THIS: si ApiRoutes a une route spécifique pour update, utilise-la.
+            val request = Request.Builder()
+                .url(ApiRoutes.updateEventCapacity(eventId)) // <-- adapte si besoin
+                .addHeader("Authorization", "Bearer $token")
+                .patch(body) // ou put(...) si ton API attend PUT
                 .build()
 
             val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
@@ -172,16 +221,115 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // --- Section admin: compteur nb places + boutons + Enregistrer ---
+                        if (role.lowercase() == "admin") {
+                            // calcul du minimum autorisé : >= 1 et >= nbPlaceOccupeState
+                            val minAllowed = maxOf(1, nbPlaceOccupeState)
+
+                            // Affichage du compteur
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        // décrémente si possible
+                                        val newVal = (nbPlaceTotalState - 1).coerceAtLeast(minAllowed)
+                                        if (newVal != nbPlaceTotalState) {
+                                            nbPlaceTotalState = newVal
+                                            capacityDirty = true
+                                        }
+                                    },
+                                    enabled = nbPlaceTotalState > minAllowed
+                                ) {
+                                    Icon(Icons.Filled.ArrowBack, contentDescription = "Diminuer")
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "${nbPlaceOccupeState}/${nbPlaceTotalState}",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                    Text(
+                                        text = "places occupées / total",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                IconButton(
+                                    onClick = {
+                                        // incrémente (pas de plafond)
+                                        nbPlaceTotalState = nbPlaceTotalState + 1
+                                        capacityDirty = true
+                                    },
+                                    enabled = true
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = "Augmenter")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Bouton Enregistrer (admin)
+                            Button(
+                                onClick = {
+                                    // Appel API pour sauvegarder la nouvelle capacité
+                                    isUpdatingCapacity = true
+                                    coroutineScope.launch {
+                                        val (ok, errorMsg) = performUpdateCapacity(nbPlaceTotalState)
+                                        isUpdatingCapacity = false
+                                        if (ok) {
+                                            // Mettre à jour localement eventData pour refléter le changement
+                                            try {
+                                                eventData = JSONObject(data.toString()).put("NbPlaceTotal", nbPlaceTotalState)
+                                                capacityDirty = false
+                                            } catch (_: Exception) {}
+                                            // Navigation vers page success — adapte la route si tu as une util spécifique
+                                            navController.navigate(successRouteFor(SuccessType.UPDATE))
+                                        } else {
+                                            Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                enabled = capacityDirty && !isUpdatingCapacity,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (capacityDirty) Color(0xFFFF9800) else Color(0xFFFFC107),
+                                    disabledContainerColor = Color(0xFFFFC107)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                if (isUpdatingCapacity) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Enregistrement…")
+                                } else {
+                                    Text("Enregistrer")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
-                        // --- LOGIQUE D'ACTIVATION DU BOUTON ---
+                        // --- LOGIQUE D'ACTIVATION DU BOUTON POUR 'user' ---
                         val status = data.optString("Status", "").lowercase() // ex: "ok", "full", "cancelled"
                         val alreadyRegistered = data.optBoolean("AlreadyRegister", false)
                         val canRegister = status == "ok" && !alreadyRegistered && !isRegistering
 
                         when (role.lowercase()) {
                             "user" -> {
-                                // Bouton principal
+                                // Bouton principal pour user
                                 Button(
                                     onClick = {
                                         if (canRegister) showConfirmDialog = true
@@ -267,19 +415,8 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             }
 
                             "admin" -> {
-                                Button(
-                                    onClick = { },
-                                    enabled = false,
-                                    colors = ButtonDefaults.buttonColors(
-                                        disabledContainerColor = Color(0xFFFFC107)
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                ) {
-                                    Text("Enregistrer")
-                                }
+                                // pour admin, le bouton Enregistrer est géré plus haut (après le compteur)
+                                // On peut éventuellement laisser un footer inactif si nécessaire. Ici, rien à faire.
                             }
 
                             else -> {
