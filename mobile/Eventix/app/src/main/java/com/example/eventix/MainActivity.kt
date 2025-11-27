@@ -20,6 +20,8 @@ import com.example.eventix.ui.screens.LoginScreen
 import com.example.eventix.ui.screens.InscriptionScreen
 import com.example.eventix.ui.screens.LoadingScreen
 import com.example.eventix.ui.screens.MainScreen
+import com.example.eventix.ui.screens.SuccessScreen
+import com.example.eventix.ui.screens.SuccessType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,6 +55,11 @@ class MainActivity : ComponentActivity() {
                         val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
                         EventDetailScreen(navController = navController, eventId = eventId, prefs = prefs)
+                    }
+                    composable("success/{type}", arguments = listOf(navArgument("type") { type = NavType.StringType })) { backStackEntry ->
+                       val raw = backStackEntry.arguments?.getString("type") ?: SuccessType.REGISTRATION.name
+                       val type = try { SuccessType.valueOf(raw) } catch (e: Exception) { SuccessType.REGISTRATION }
+                       SuccessScreen(navController = navController, successType = type)
                     }
                 }
             }
@@ -106,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     // Token invalide ou expiré → supprimer et login
                     prefs.edit().remove("access_token").apply()
+                    prefs.edit().remove("role").apply()
                     withContext(Dispatchers.Main) {
                         navController.navigate("login") {
                             popUpTo("login") { inclusive = true }

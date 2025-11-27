@@ -125,12 +125,13 @@ fun MainScreen(navController: NavController) {
         }
     }
 
-    // Chargement initial
+    // Vérification du rôle si manquant
     LaunchedEffect(Unit) {
+        checkRoleIfMissing(context, navController, token)
         loadPage(1)
     }
 
-    // Détection du scroll en bas pour charger la page suivante
+    // Détection du scroll en bas
     LaunchedEffect(listState.firstVisibleItemIndex, listState.layoutInfo.totalItemsCount) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         if (lastVisible >= events.size - 3 && !loading && !endReached) {
@@ -145,7 +146,6 @@ fun MainScreen(navController: NavController) {
             .background(Color.White)
             .padding(horizontal = 16.dp)
     ) {
-        // Header (inchangé)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -170,9 +170,7 @@ fun MainScreen(navController: NavController) {
         SwipeRefresh(
             state = swipeRefreshState,
             onRefresh = {
-                scope.launch {
-                    loadPage(1, reset = true)
-                }
+                scope.launch { loadPage(1, reset = true) }
             }
         ) {
             if (loading && events.isEmpty()) {
@@ -195,9 +193,9 @@ fun MainScreen(navController: NavController) {
                     contentPadding = PaddingValues(top = 24.dp, bottom = 64.dp)
                 ) {
                     items(events) { event ->
-                        EventCard(event = event, onClick = {
+                        EventCard(event = event) {
                             navController.navigate("event/${event.id}")
-                        })
+                        }
                     }
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
@@ -215,8 +213,6 @@ fun MainScreen(navController: NavController) {
         }
     }
 }
-
-
 
 @Composable
 fun EventCard(event: Event, onClick: () -> Unit) {
@@ -252,14 +248,17 @@ fun EventCard(event: Event, onClick: () -> Unit) {
 
                     when (val state = painter.state) {
                         is AsyncImagePainter.State.Loading -> {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFFFFA500))
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center),
+                                color = Color(0xFFFFA500)
+                            )
                         }
 
                         is AsyncImagePainter.State.Error -> {
                             val err = state.result.throwable
 
                             Text(
-                                text = "Erreur: ${'$'}{err?.message ?: err}",
+                                text = "Erreur: ${err?.message ?: err}",
                                 color = Color.White,
                                 modifier = Modifier
                                     .align(Alignment.Center)
@@ -279,13 +278,11 @@ fun EventCard(event: Event, onClick: () -> Unit) {
             Text(text = event.description, maxLines = 3, color = Color.DarkGray)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Calcul du ratio et couleur progressive entre vert -> orange -> rouge
             val ratio = if (event.nbPlaceTotal > 0) {
                 event.nbPlaceOccupe.toFloat() / event.nbPlaceTotal.toFloat()
             } else 0f
-            val clamped = ratio.coerceIn(0f, 1f)
 
-            // lerp between a pleasant green and a red. Middle values produce orange/yellowish hues.
+            val clamped = ratio.coerceIn(0f, 1f)
             val statusColor = lerp(Color(0xFF2ECC71), Color(0xFFE74C3C), clamped)
 
             val isFull = event.nbPlaceOccupe >= event.nbPlaceTotal && event.nbPlaceTotal > 0
@@ -320,10 +317,60 @@ fun EventCard(event: Event, onClick: () -> Unit) {
     }
 }
 
+private suspend fun checkRoleIfMissing(
+    context: Context,
+    navController: NavController,
+    token: String?
+) {
+    if (token.isNullOrEmpty()) {
+        navController.navigate("login") {
+            popUpTo("login") { inclusive = true }
+        }
+        return
+    }
+
+    val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+    val existingRole = prefs.getString("role", null)
+
+    if (!existingRole.isNullOrEmpty()) return
+
+    try {
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(ApiRoutes.USER_ME)
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+
+        val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+
+        if (response.isSuccessful) {
+            val body = response.body?.string()
+            if (!body.isNullOrEmpty()) {
+                val json = JSONObject(body)
+                val role = json.optString("role", "")
+                if (role.isNotEmpty()) {
+                    prefs.edit().putString("role", role).apply()
+                }
+            }
+        } else {
+            if (response.code == 401) {
+                prefs.edit().remove("access_token").apply()
+                prefs.edit().remove("role").apply()
+                navController.navigate("login") {
+                    popUpTo("main") { inclusive = true }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
 
 private fun logout(context: Context, navController: NavController) {
     val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     prefs.edit().remove("access_token").apply()
+    prefs.edit().remove("role").apply()
 
     navController.navigate("login") {
         popUpTo("main") { inclusive = true }
