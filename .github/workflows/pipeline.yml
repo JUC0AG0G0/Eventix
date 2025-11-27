@@ -79,9 +79,8 @@ jobs:
   build_apk:
     name: Build Android APK & Publish Release
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: build_and_publish
     env:
-      # chemins relatifs dans ton repo
       APP_DIR: mobile/Eventix
       GRADLE_WRAPPER: ./gradlew
     steps:
@@ -92,17 +91,13 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'   # ajuste si ton projet utilise une autre version
+          java-version: '17'
 
-      - name: Set up Android SDK (cmdline tools, platform-tools)
+      # NOTE: l'action setup-android@v2 n'accepte pas toujours des inputs. Si tu veux garder un step d'installation, mets-le sans inputs :
+      - name: Optional: Set up Android SDK (no inputs to avoid warnings)
         uses: android-actions/setup-android@v2
-        with:
-          api-level: 33
-          build-tools: '33.0.2'
-          ndk: ''        # laisse vide si pas besoin
-      # refs: setup-android action (installe commandline tools, accepte licences). :contentReference[oaicite:2]{index=2}
 
-      - name: Cache Gradle wrapper
+      - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
@@ -114,5 +109,44 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: |
           chmod +x $GRADLE_WRAPPER
-          # build release (ajuste assembleRelease si ton module a un autre nom)
-          $GRADLE_WRAPPER assembleRelease
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Find built APK
+        id: find_apk
+        run: |
+          set -e
+          # Cherche n'importe quel fichier *.apk contenant "release" dans son nom
+          APK_PATH=$(find ${{ env.APP_DIR }}/ -type f -iname "*release*.apk" | head -n 1 || true)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No release APK found. Listing build output for debug:" >&2
+            find ${{ env.APP_DIR }}/ -maxdepth 6 -type f -print
+            exit 1
+          fi
+          echo "Found APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload APK as artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventix-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: apk-${{ github.sha }}
+          release_name: eventix-apk-${{ github.sha }}
+          body: "Automated APK build for commit ${{ github.sha }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK to Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_apk.outputs.apk_path }}
+          asset_name: eventix-${{ github.sha }}.apk
+          asset_content_type: application/vnd.android.package-archive
