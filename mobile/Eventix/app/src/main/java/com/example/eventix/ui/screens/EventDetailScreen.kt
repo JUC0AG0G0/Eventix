@@ -10,6 +10,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,18 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
     var isRegistering by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
+    // états pour admin (modification nombre de places)
+    var isUpdatingCapacity by remember { mutableStateOf(false) }
+    var capacityDirty by remember { mutableStateOf(false) } // devient true si admin modifie la valeur
+
+    // états locaux de places (initialisés une fois eventData chargé)
+    var nbPlaceTotalState by remember { mutableStateOf(1) }
+    var nbPlaceOccupeState by remember { mutableStateOf(0) }
+
+    // Nouveaux états pour suppression
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
+
     // scope pour lancer des coroutines depuis des handlers (onClick, etc.)
     val coroutineScope = rememberCoroutineScope()
 
@@ -62,7 +77,14 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
             }
 
             if (response.isSuccessful) {
-                eventData = response.body?.string()?.let { JSONObject(it) }
+                response.body?.string()?.let {
+                    eventData = JSONObject(it)
+                    // initialisation des états liés aux places si présents dans le JSON
+                    val total = eventData?.optInt("nbPlaceTotal", 1) ?: 1
+                    val occ = eventData?.optInt("nbPlaceOccupe", 0) ?: 0
+                    nbPlaceTotalState = if (total >= 1) total else 1
+                    nbPlaceOccupeState = if (occ >= 0) occ else 0
+                }
             } else {
                 navigateToMain(navController)
             }
@@ -72,6 +94,12 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
         } finally {
             isLoading = false
         }
+    }
+
+    // isCancelled calculé à chaque recomposition à partir de eventData (supporte "cancelled" et "annulé")
+    val isCancelled = remember(eventData) {
+        val status = eventData?.optString("Status", "") ?: ""
+        status.equals("cancelled", ignoreCase = true) || status.equals("annulé", ignoreCase = true)
     }
 
     // Fonction locale pour appeler l'API d'inscription (utilise les extensions modernes)
@@ -101,6 +129,58 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
         }
     }
 
+    suspend fun performUpdateCapacity(newTotal: Int): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val bodyJson = JSONObject()
+                .put("nbplace", newTotal)
+                .toString()
+            val body = bodyJson.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(ApiRoutes.updateEventCapacity(eventId))
+                .addHeader("Authorization", "Bearer $token")
+                .patch(body)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (resp.isSuccessful) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
+        }
+    }
+
+    suspend fun performDeleteEvent(): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val emptyBody = "".toRequestBody(mediaType)
+            val request = Request.Builder()
+                .url(ApiRoutes.deleteEvent(eventId))
+                .addHeader("Authorization", "Bearer $token")
+                .delete(emptyBody)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+            if (resp.isSuccessful && resp.code == 200) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -108,6 +188,21 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 navigationIcon = {
                     IconButton(onClick = { navigateToMain(navController) }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    if (role.lowercase() == "admin") {
+                        // visible mais désactivé si isCancelled
+                        IconButton(
+                            onClick = {
+                                if (!isCancelled) {
+                                    showDeleteConfirm = true
+                                }
+                            },
+                            enabled = !isCancelled
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Supprimer l'événement")
+                        }
                     }
                 }
             )
@@ -172,16 +267,120 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         Text(data.optString("Description"), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
+
                         Spacer(modifier = Modifier.weight(1f))
 
-                        // --- LOGIQUE D'ACTIVATION DU BOUTON ---
+                        // --- Section admin: compteur nb places + boutons + Enregistrer ---
+                        if (role.lowercase() == "admin") {
+                            // calcul du minimum autorisé : >= 1 et >= nbPlaceOccupeState
+                            val minAllowed = maxOf(1, nbPlaceOccupeState)
+
+                            // Affichage du compteur
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (!isCancelled) {
+                                            val newVal = (nbPlaceTotalState - 1).coerceAtLeast(minAllowed)
+                                            if (newVal != nbPlaceTotalState) {
+                                                nbPlaceTotalState = newVal
+                                                capacityDirty = true
+                                            }
+                                        }
+                                    },
+                                    enabled = !isCancelled && nbPlaceTotalState > minAllowed
+                                ) {
+                                    Icon(Icons.Filled.Remove, contentDescription = "Diminuer")
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "${nbPlaceOccupeState}/${nbPlaceTotalState}",
+                                        style = MaterialTheme.typography.titleLarge
+                                    )
+                                    Text(
+                                        text = "places occupées / total",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                IconButton(
+                                    onClick = {
+                                        if (!isCancelled) {
+                                            nbPlaceTotalState = nbPlaceTotalState + 1
+                                            capacityDirty = true
+                                        }
+                                    },
+                                    enabled = !isCancelled
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = "Augmenter")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Bouton Enregistrer (admin)
+                            Button(
+                                onClick = {
+                                    if (!isCancelled) {
+                                        // Appel API pour sauvegarder la nouvelle capacité
+                                        isUpdatingCapacity = true
+                                        coroutineScope.launch {
+                                            val (ok, errorMsg) = performUpdateCapacity(nbPlaceTotalState)
+                                            isUpdatingCapacity = false
+                                            if (ok) {
+                                                // Mettre à jour localement eventData pour refléter le changement
+                                                try {
+                                                    eventData = JSONObject(data.toString()).put("NbPlaceTotal", nbPlaceTotalState)
+                                                    capacityDirty = false
+                                                } catch (_: Exception) {}
+                                                // Navigation vers page success — adapte la route si tu as une util spécifique
+                                                navController.navigate(successRouteFor(SuccessType.UPDATE))
+                                            } else {
+                                                Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = capacityDirty && !isUpdatingCapacity && !isCancelled,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (capacityDirty && !isCancelled) Color(0xFFFF9800) else Color(0xFFE0A85A),
+                                    disabledContainerColor = Color(0xFFE0A85A)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                if (isUpdatingCapacity) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Enregistrement…")
+                                } else {
+                                    Text("Enregistrer")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // --- LOGIQUE D'ACTIVATION DU BOUTON POUR 'user' ---
                         val status = data.optString("Status", "").lowercase() // ex: "ok", "full", "cancelled"
                         val alreadyRegistered = data.optBoolean("AlreadyRegister", false)
                         val canRegister = status == "ok" && !alreadyRegistered && !isRegistering
 
                         when (role.lowercase()) {
                             "user" -> {
-                                // Bouton principal
+                                // Bouton principal pour user
                                 Button(
                                     onClick = {
                                         if (canRegister) showConfirmDialog = true
@@ -206,13 +405,22 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                     } else {
                                         Text(
                                             when {
-                                                alreadyRegistered -> "Déjà inscrit"
-                                                status != "ok" -> when (status) {
-                                                    "full", "complet" -> "Complet"
-                                                    "cancelled", "annulé" -> "Annulé"
-                                                    else -> "Inscription indisponible"
-                                                }
-                                                else -> "S'inscrire"
+                                                status.equals("cancelled", ignoreCase = true)
+                                                        || status.equals("annulé", ignoreCase = true) ->
+                                                    "Annulé"
+
+                                                alreadyRegistered ->
+                                                    "Déjà inscrit"
+
+                                                status.equals("full", ignoreCase = true)
+                                                        || status.equals("complet", ignoreCase = true) ->
+                                                    "Complet"
+
+                                                status != "ok" ->
+                                                    "Inscription indisponible"
+
+                                                else ->
+                                                    "S'inscrire"
                                             }
                                         )
                                     }
@@ -267,19 +475,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                             }
 
                             "admin" -> {
-                                Button(
-                                    onClick = { },
-                                    enabled = false,
-                                    colors = ButtonDefaults.buttonColors(
-                                        disabledContainerColor = Color(0xFFFFC107)
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                ) {
-                                    Text("Enregistrer")
-                                }
+                                // pour admin, le bouton Enregistrer est géré plus haut (après le compteur)
                             }
 
                             else -> {
@@ -296,6 +492,59 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                     )
                 }
             }
+        }
+
+        // --- Dialog de confirmation pour la suppression (accessible depuis l'IconButton poubelle) ---
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { if (!isDeleting) showDeleteConfirm = false },
+                title = { Text("Supprimer l'événement") },
+                text = { Text("Voulez-vous vraiment supprimer l'événement \"${eventData?.optString("Nom") ?: ""}\" ? Cette action est irréversible.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // lancer la suppression
+                            isDeleting = true
+                            coroutineScope.launch {
+                                val (ok, errorMsg) = performDeleteEvent()
+                                isDeleting = false
+                                showDeleteConfirm = false
+                                if (ok) {
+                                    // redirige vers la page success cancellation
+                                    navController.navigate(successRouteFor(SuccessType.CANCELLATION))
+                                } else {
+                                    Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        if (isDeleting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Suppression…")
+                        } else {
+                            Text("Supprimer")
+                        }
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = { if (!isDeleting) showDeleteConfirm = false },
+                        enabled = !isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Annuler")
+                    }
+                }
+            )
         }
     }
 }
