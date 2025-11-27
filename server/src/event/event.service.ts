@@ -183,27 +183,59 @@ export class EventService {
 		return deleted;
 	}
 
-	async patchEvent(id: string, body: UpdateCapacityDto) {
-		const event = await this.eventModel.findById(id);
+	async patchEvent(eventId: string, body: UpdateCapacityDto) {
+		// validation d'id
+		if (!Types.ObjectId.isValid(eventId)) {
+			throw new BadRequestException("Invalid event id");
+		}
+		const eventObjectId = new Types.ObjectId(eventId);
 
-		if (!event) {
-			throw new NotFoundException("Événement introuvable.");
+		// fetch existant
+		const existing = await this.eventModel.findById(eventObjectId).exec();
+		if (!existing) {
+			throw new NotFoundException("Event not found");
 		}
 
-		const newCapacity = body.nbplace;
+		// map DTO -> champ réel du schema
+		// (adapter si ton schema utilise un autre nom)
+		const newCapacity = Number(body.nbplace);
+		if (!Number.isFinite(newCapacity) || newCapacity < 1) {
+			throw new BadRequestException("nbplace invalide");
+		}
 
-		if (newCapacity < event.nbPlaceOccupe) {
+		const occupied = existing.nbPlaceOccupe ?? 0;
+
+		if (newCapacity < occupied) {
 			throw new BadRequestException(
-				"La nouvelle capacité ne peut pas être inférieure au nombre de places déjà occupées.",
+				`Nouvelle capacité (${newCapacity}) inférieure au nombre d'inscrits (${occupied}).`
 			);
 		}
 
-		event.nbPlaceTotal = newCapacity;
-		event.EditDate = new Date();
+		// Préparation de l'update : on met à jour uniquement le champ nbPlaceTotal (ou le nom correct)
+		const update: any = {
+			$set: { nbPlaceTotal: newCapacity },
+		};
 
-		await event.save();
+		// si on passe de complet à place disponible, on rétablit le status
+		if (existing.Status === "Complet" && newCapacity > occupied) {
+			update.$set.Status = "Ok";
+		}
 
-		return;
+		// si nouvelle capacité égale aux inscrits -> rester ou devenir "Complet"
+		if (newCapacity <= occupied && existing.Status !== "Complet") {
+			update.$set.Status = "Complet";
+		}
+
+		const options = { new: true, runValidators: true } as const;
+
+		const updated = await this.eventModel.findByIdAndUpdate(eventObjectId, update, options).lean().exec();
+
+		// sécurité : si pour une raison inconnue update revient null
+		if (!updated) {
+			throw new BadRequestException("Impossible de mettre à jour l'événement");
+		}
+
+		return updated;
 	}
 
 	async syncUserEvents(userId: string, sinceIso?: string): Promise<SyncEventsDto> {
