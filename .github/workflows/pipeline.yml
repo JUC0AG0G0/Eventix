@@ -93,7 +93,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # NOTE: Avoid passing unknown inputs to setup-android to prevent warnings.
       - name: Optional Set up Android SDK (no inputs to avoid warnings)
         uses: android-actions/setup-android@v2
 
@@ -130,8 +129,15 @@ jobs:
           name: eventix-apk
           path: ${{ steps.find_apk.outputs.apk_path }}
 
-      # Use PAT_RELEASE (if provided) as primary token, otherwise fallback to GITHUB_TOKEN.
-      # If your org restricts GITHUB_TOKEN, create a PAT with repo scope and store it as secrets.PAT_RELEASE.
+      # Set release token: prefer PAT_RELEASE (if present), otherwise use built-in GITHUB_TOKEN
+      - name: Set RELEASE_TOKEN (PAT_RELEASE or fallback to GITHUB_TOKEN)
+        run: |
+          if [ -n "${{ secrets.PAT_RELEASE }}" ]; then
+            echo "RELEASE_TOKEN=${{ secrets.PAT_RELEASE }}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          fi
+
       - name: Create GitHub Release (softprops)
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -142,14 +148,14 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_RELEASE != '' && secrets.PAT_RELEASE || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
 
-      - name: Upload APK to Release
-        uses: actions/upload-release-asset@v2
+      - name: Upload APK to Release (actions/upload-release-asset@v1)
+        uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ steps.find_apk.outputs.apk_path }}
           asset_name: eventix-${{ github.sha }}.apk
           asset_content_type: application/vnd.android.package-archive
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_RELEASE != '' && secrets.PAT_RELEASE || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
