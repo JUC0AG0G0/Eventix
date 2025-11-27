@@ -73,3 +73,46 @@ jobs:
             mpv taco-bell-bong-sfx.mp3
 
             echo "✅ Déploiement backend terminé avec succès."
+
+
+  # --------- JOB : Build Android APK et publier sur GitHub Release ----------
+  build_apk:
+    name: Build Android APK & Publish Release
+    runs-on: ubuntu-latest
+    needs: build_and_publish
+    env:
+      # chemins relatifs dans ton repo
+      APP_DIR: mobile/Eventix
+      GRADLE_WRAPPER: ./gradlew
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'   # ajuste si ton projet utilise une autre version
+
+      - name: Set up Android SDK (cmdline tools, platform-tools)
+        uses: android-actions/setup-android@v2
+        with:
+          api-level: 33
+          build-tools: '33.0.2'
+          ndk: ''        # laisse vide si pas besoin
+      # refs: setup-android action (installe commandline tools, accepte licences). :contentReference[oaicite:2]{index=2}
+
+      - name: Cache Gradle wrapper
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Build APK (release)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          chmod +x $GRADLE_WRAPPER
+          # build release (ajuste assembleRelease si ton module a un autre nom)
+          $GRADLE_WRAPPER assembleRelease
