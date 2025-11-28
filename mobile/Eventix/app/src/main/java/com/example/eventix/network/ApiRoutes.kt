@@ -2,9 +2,9 @@ package com.example.eventix.network
 
 // Host principal
 // const val HOST = "http://192.168.1.35:9010"
-// const val HOST = "http://10.6.0.2:9010"
+const val HOST = "http://10.6.0.2:9010"
 // const val HOST = "http://10.6.251.38:9010"
-const val HOST = "http://10.8.251.147:9010"
+// const val HOST = "http://10.8.252.234:9010"
 
 object ApiRoutes {
 
@@ -15,7 +15,7 @@ object ApiRoutes {
 
     // Events
     const val EVENT_REGISTER = "$HOST/events/register"          // POST pour s'inscrire
-    const val EVENT_SYNC = "$HOST/events/sync"                  // GET events modifiés depuis lastSync
+    fun EVENT_SYNC(date: String) = "$HOST/events/sync?since=$date"                  // GET events modifiés depuis lastSync
 
     // Les endpoints qui nécessitent l'ID de l'événement
     fun events(nbpage: String) = "$HOST/events?page=$nbpage"    // GET paginé
