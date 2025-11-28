@@ -30,9 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 
 enum class SuccessType(val title: String, val drawableResName: String) {
     REGISTRATION("Inscription réussie", "ic_register"),
-    PAYMENT("Paiement effectué", "ic_update"),
-    CANCELLATION("Annulation effectuée", "ic_delete")
-    // Ajoutez d'autres types si besoin
+    UPDATE("Nombre de place modifié", "ic_update"),
+    CANCELLATION("Evenement annulé", "ic_delete")
 }
 
 // Route helper pour la navigation par chaîne
@@ -85,8 +84,8 @@ fun SuccessScreen(
             Text(
                 text = when (successType) {
                     SuccessType.REGISTRATION -> "Merci ! Ton inscription a bien été prise en compte."
-                    SuccessType.PAYMENT -> "Merci ! Ton paiement a été traité avec succès."
-                    SuccessType.CANCELLATION -> "Ton annulation a bien été enregistrée."
+                    SuccessType.UPDATE -> "Le nombre de place de cette événement a bien été mis a jour"
+                    SuccessType.CANCELLATION -> "L'annulation/suppression de l'événement a bien été éffectué."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,

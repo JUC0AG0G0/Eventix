@@ -41,7 +41,8 @@ data class Event(
     val nbPlaceTotal: Int,
     val nbPlaceOccupe: Int,
     val status: String,
-    val editDate: String
+    val editDate: String,
+    val alreadyRegister: String
 )
 
 @Composable
@@ -100,7 +101,8 @@ fun MainScreen(navController: NavController) {
                         nbPlaceTotal = item.getInt("nbPlaceTotal"),
                         nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
                         status = item.getString("Status"),
-                        editDate = item.getString("EditDate")
+                        editDate = item.getString("EditDate"),
+                        alreadyRegister = item.getString("AlreadyRegister")
                     )
                 )
             }
@@ -286,17 +288,22 @@ fun EventCard(event: Event, onClick: () -> Unit) {
             val statusColor = lerp(Color(0xFF2ECC71), Color(0xFFE74C3C), clamped)
 
             val isFull = event.nbPlaceOccupe >= event.nbPlaceTotal && event.nbPlaceTotal > 0
+            val isRegister = event.alreadyRegister == "true"
+            val isCancelled = event.status == "Cancelled"
+
+            val label = when {
+                isCancelled -> "Annulé"
+                isRegister -> "Inscrit"
+                isFull -> "Complet"
+                else -> "${event.nbPlaceOccupe} / ${event.nbPlaceTotal} places occupées"
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isFull) {
-                        "Complet"
-                    } else {
-                        "${event.nbPlaceOccupe} / ${event.nbPlaceTotal} places occupées"
-                    },
+                    text = label,
                     fontSize = 12.sp,
                     color = statusColor
                 )
