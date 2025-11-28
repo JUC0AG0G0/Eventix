@@ -1,6 +1,7 @@
 package com.example.eventix.ui.screens
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +31,8 @@ import org.json.JSONObject
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.example.eventix.data.local.AppDatabase
+import com.example.eventix.data.local.EventEntity
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
@@ -124,6 +127,88 @@ fun MainScreen(navController: NavController) {
             e.printStackTrace()
         } finally {
             loading = false
+        }
+    }
+
+    suspend fun syncEvents(context: Context, token: String) {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val db = AppDatabase.getDatabase(context)
+
+        // 1. Récupérer la date ou la valeur par défaut (ISO 8601 très ancienne)
+        val lastSyncDate = prefs.getString("date_sync", "1970-11-01T10:30:50.909Z") ?: "1970-11-01T10:30:50.909Z"
+
+        withContext(Dispatchers.IO) {
+            try {
+                // 2. Préparer la requête
+                val client = OkHttpClient()
+                // Assure-toi que ApiRoutes.EVENT_SYNC gère le paramètre date correctement
+                val url = ApiRoutes.EVENT_SYNC(lastSyncDate)
+
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $token")
+                    .get()
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw RuntimeException("Sync failed: url : ${url} et le reste : ${response.code}")
+                    }
+
+                    val responseBody = response.body?.string() ?: return@use
+                    val json = JSONObject(responseBody)
+
+                    // 3. Parser la réponse
+                    val newLastSync = json.getString("lastSync")
+                    val eventsArray = json.getJSONArray("events")
+
+                    val entitiesToInsert = mutableListOf<EventEntity>()
+
+                    for (i in 0 until eventsArray.length()) {
+                        val item = eventsArray.getJSONObject(i)
+
+                        // Conversion JSON -> Entity
+                        entitiesToInsert.add(
+                            EventEntity(
+                                id = item.getString("_id"),
+                                nom = item.getString("Nom"),
+                                description = item.getString("Description"),
+                                image = item.getString("Image"),
+                                nbPlaceTotal = item.getInt("nbPlaceTotal"),
+                                nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
+                                status = item.getString("Status"),
+                                editDate = item.getString("EditDate"),
+                                // Attention: l'API renvoie un booléen, ton UI attend un String
+                                alreadyRegister = item.optBoolean("AlreadyRegister", false)
+                                    .toString()
+                            )
+                        )
+                    }
+
+                    // 4. Sauvegarder dans la DB locale (Upsert)
+                    if (entitiesToInsert.isNotEmpty()) {
+                        db.eventDao().upsertAll(entitiesToInsert)
+                    }
+
+                    // 5. Mettre à jour la date de sync UNIQUEMENT si tout s'est bien passé
+                    prefs.edit().putString("date_sync", newLastSync).apply()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Optionnel : Gérer l'erreur silencieusement ou notifier l'UI
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!token.isNullOrEmpty()) {
+            // On lance la sync dans une coroutine séparée pour ne pas bloquer l'UI
+            launch(Dispatchers.IO) {
+                syncEvents(context, token)
+                // Optionnel : Une fois la sync finie, tu pourrais recharger la page
+                // pour afficher les données mises à jour si l'utilisateur est sur la page 1
+                // withContext(Dispatchers.Main) { loadPage(1, reset = true) }
+            }
         }
     }
 

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("kotlin-kapt")
 }
 
 android {
@@ -22,7 +23,7 @@ android {
         create("release") {
             storeFile = file(System.getenv("GITHUB_WORKSPACE") + "/eventix.keystore")
             storePassword = System.getenv("KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS")          // "eventix_prod"
+            keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
         }
     }
@@ -34,7 +35,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")  // Ajoute le signingConfig ici
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -62,6 +63,7 @@ dependencies {
     implementation(libs.androidx.navigation.runtime.ktx)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.ads.mobile.sdk)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -69,6 +71,14 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // --- AJOUT : ROOM DATABASE ---
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version") // Pour utiliser les coroutines avec Room
+    kapt("androidx.room:room-compiler:$room_version")
+    // -----------------------------
+
     // Ktor client
     implementation("io.ktor:ktor-client-core:2.3.5")
     implementation("io.ktor:ktor-client-cio:2.3.5")
