@@ -102,7 +102,7 @@ export class EventService {
 		const update: any = {
 			$addToSet: { personneInscrites: userObjectId },
 			$inc: { nbPlaceOccupe: 1 },
-			$set: { EditDate: new Date() }
+			$set: { EditDate: new Date() },
 		};
 
 		const options = { new: true } as const;
@@ -208,7 +208,7 @@ export class EventService {
 
 		if (newCapacity < occupied) {
 			throw new BadRequestException(
-				`Nouvelle capacité (${newCapacity}) inférieure au nombre d'inscrits (${occupied}).`
+				`Nouvelle capacité (${newCapacity}) inférieure au nombre d'inscrits (${occupied}).`,
 			);
 		}
 
