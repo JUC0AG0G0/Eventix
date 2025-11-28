@@ -102,6 +102,7 @@ export class EventService {
 		const update: any = {
 			$addToSet: { personneInscrites: userObjectId },
 			$inc: { nbPlaceOccupe: 1 },
+			$set: { EditDate: new Date() }
 		};
 
 		const options = { new: true } as const;
@@ -132,7 +133,7 @@ export class EventService {
 
 		if (updated.nbPlaceOccupe >= updated.nbPlaceTotal && updated.Status === "Ok") {
 			updated = await this.eventModel
-				.findOneAndUpdate({ _id: eventObjectId }, { Status: "Complet" }, { new: true } as const)
+				.findOneAndUpdate({ _id: eventObjectId }, { Status: "Complet", EditDate: new Date() }, { new: true } as const)
 				.lean()
 				.exec();
 		}
