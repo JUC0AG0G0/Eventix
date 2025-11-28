@@ -39,6 +39,11 @@ jobs:
         run: |
           npm ci
 
+      - name: Docker diagnostics
+        run: |
+          docker version
+          docker info || true
+
       - name: Run integration tests
         working-directory: ./server
         id: run-tests

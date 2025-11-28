@@ -1,47 +1,57 @@
+/* server/test/event.integration.ts */
 import { GenericContainer, StartedTestContainer, Wait } from "testcontainers";
 import { INestApplication } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../../src/app.module";
 
-jest.setTimeout(60000); // 60 secondes pour les hooks longs
+jest.setTimeout(180000); // 3 minutes au total pour hooks longs
 
 let app: INestApplication;
-let mongoContainer: StartedTestContainer;
+let mongoContainer: StartedTestContainer | undefined;
 
 beforeAll(async () => {
-	// 1️⃣ Démarrer un conteneur MongoDB temporaire
-	mongoContainer = await new GenericContainer("mongo:7.0")
-		.withExposedPorts(27017)
-		.withEnvironment({
-			MONGO_INITDB_ROOT_USERNAME: "testuser",
-			MONGO_INITDB_ROOT_PASSWORD: "testpass",
-			MONGO_INITDB_DATABASE: "testdb",
-		})
-		.withWaitStrategy(Wait.forLogMessage("Waiting for connections")) // attend que Mongo soit prêt
-		.start();
+	// Timeout plus généreux pour le démarrage des containers
+	jest.setTimeout(180000);
 
-	const mongoPort = mongoContainer.getMappedPort(27017);
-	const mongoHost = mongoContainer.getHost();
-	const mongoUri = `mongodb://testuser:testpass@${mongoHost}:${mongoPort}/testdb?authSource=admin`;
+	if (process.env.DATABASE_URL) {
+		// CI fournit déjà Mongo (via services GH Actions)
+		console.log("Using DATABASE_URL from env (CI service).");
+	} else {
+		// Démarre testcontainers en local/dev
+		// NOTE: withEnvironment (pas withEnv) — API documentée.
+		// On caste le résultat pour satisfaire TS/ESLint si la lib expose des any.
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+		mongoContainer = (await new GenericContainer("mongo:7.0")
+			.withExposedPorts(27017)
+			.withEnvironment({
+				MONGO_INITDB_ROOT_USERNAME: "testuser",
+				MONGO_INITDB_ROOT_PASSWORD: "testpass",
+				MONGO_INITDB_DATABASE: "testdb",
+			})
+			.withWaitStrategy(Wait.forHealthCheck()) // attend le healthcheck docker
+			.withStartupTimeout(120000) // 2 minutes
+			.start()) as unknown as StartedTestContainer;
 
-	// 2️⃣ Définir les variables d'environnement nécessaires
-	process.env.DATABASE_URL = mongoUri;
-	process.env.JWT_SECRET = "testsecret"; // Obligatoire pour AuthModule
-	process.env.JWT_EXPIRES_IN = "3600"; // Obligatoire pour AuthModule
+		const mongoPort = mongoContainer.getMappedPort(27017);
+		const mongoHost = mongoContainer.getHost();
+		process.env.DATABASE_URL = `mongodb://testuser:testpass@${mongoHost}:${mongoPort}/testdb?authSource=admin`;
+	}
+
+	// variables communes
+	process.env.JWT_SECRET = "testsecret";
+	process.env.JWT_EXPIRES_IN = "3600";
 	process.env.NODE_ENV = "test";
-	process.env.SERVER_PORT = "0"; // port aléatoire
+	process.env.SERVER_PORT = "0";
 
-	// 3️⃣ Créer le module complet
+	// Création du module + init app
 	const moduleRef: TestingModule = await Test.createTestingModule({
 		imports: [AppModule],
 	}).compile();
 
-	// 4️⃣ Initialiser l'application
-	app = moduleRef.createNestApplication();
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+	app = moduleRef.createNestApplication() as INestApplication;
 	await app.init();
-
-	// 5️⃣ Écouter sur un port aléatoire
 	await app.listen(0);
 });
 
@@ -56,7 +66,9 @@ afterAll(async () => {
 
 describe("Events Module (e2e)", () => {
 	it("GET /events should return 401 without token", async () => {
-		const response = await request(app.getHttpServer()).get("/events").expect(401); // Auth JWT active
+		// supertest attend un http server : getHttpServer() est ok ici
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+		const response = await request(app.getHttpServer()).get("/events").expect(401);
 
 		expect(response.body).toBeDefined();
 	});
