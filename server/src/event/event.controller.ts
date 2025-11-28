@@ -20,6 +20,29 @@ import { SyncQueryDto } from "./dto/sync-query.dto";
 export class EventController {
 	constructor(private readonly eventService: EventService) {}
 
+	@Get("sync")
+	@ApiOperation({
+		summary: "Synchronisation des événements pour l'utilisateur",
+		description:
+			"Retourne les événements auxquels l'utilisateur est inscrit et qui ont été modifiés après la date fournie.",
+	})
+	@ApiQuery({
+		name: "since",
+		required: false,
+		type: String,
+		description: "Date ISO 8601 de la dernière synchro",
+		example: "2025-11-17T14:34:55.909Z",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Événements modifiés depuis la dernière synchro.",
+		type: SyncEventsDto,
+	})
+	@ApiResponse({ status: 400, description: "Paramètre since invalide." })
+	async sync(@Query() query: SyncQueryDto, @CurrentUser() user: JwtPayload): Promise<SyncEventsDto> {
+		return this.eventService.syncUserEvents(String(user.sub), query.since);
+	}
+
 	@Get()
 	@ApiOperation({
 		summary: "Récupère la liste paginée des événements",
@@ -145,28 +168,5 @@ export class EventController {
 		}
 
 		return { action: "deleted" };
-	}
-
-	@Get("sync")
-	@ApiOperation({
-		summary: "Synchronisation des événements pour l'utilisateur",
-		description:
-			"Retourne les événements auxquels l'utilisateur est inscrit et qui ont été modifiés après la date fournie.",
-	})
-	@ApiQuery({
-		name: "since",
-		required: false,
-		type: String,
-		description: "Date ISO 8601 de la dernière synchro",
-		example: "2025-11-17T14:34:55.909Z",
-	})
-	@ApiResponse({
-		status: 200,
-		description: "Événements modifiés depuis la dernière synchro.",
-		type: SyncEventsDto,
-	})
-	@ApiResponse({ status: 400, description: "Paramètre since invalide." })
-	async sync(@Query() query: SyncQueryDto, @CurrentUser() user: JwtPayload): Promise<SyncEventsDto> {
-		return this.eventService.syncUserEvents(String(user.sub), query.since);
 	}
 }
