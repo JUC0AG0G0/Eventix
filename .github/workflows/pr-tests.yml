@@ -1,0 +1,60 @@
+name: PR — Integration tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "pr-tests-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  integration-tests:
+    name: Tests d'intégration (server)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 18 (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "npm"
+
+      - name: Cache server node_modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: server/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('server/package-lock.json', 'server/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies (server)
+        working-directory: ./server
+        run: |
+          npm ci
+
+      - name: Run integration tests
+        working-directory: ./server
+        id: run-tests
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee test-output.log || echo "TESTS_FAILED=1" >> $GITHUB_ENV
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-log-${{ github.sha }}
+          path: ./server/test-output.log
+
+      - name: Fail job if tests failed
+        if: env.TESTS_FAILED == '1'
+        run: |
+          echo "Les tests d'intégration ont échoué."
+          exit 1
