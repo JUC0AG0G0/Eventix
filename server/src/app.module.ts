@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { HealthController } from "./health/health.controller";
 import { EventModule } from "./event/event.module";
@@ -12,8 +12,12 @@ import { AuthModule } from "./auth/auth.module";
 		ConfigModule.forRoot({
 			isGlobal: true,
 		}),
-		MongooseModule.forRoot(process.env.DATABASE_URL || "mongodb://localhost:27017/eventix", {
-			autoIndex: true,
+		MongooseModule.forRootAsync({
+			imports: [ConfigModule],
+			useFactory: (configService: ConfigService) => ({
+				uri: configService.get<string>("DATABASE_URL") || "mongodb://localhost/eventix",
+			}),
+			inject: [ConfigService],
 		}),
 		EventModule,
 		UsersModule,

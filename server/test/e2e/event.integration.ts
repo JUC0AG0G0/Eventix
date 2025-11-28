@@ -4,44 +4,53 @@ import { Test, TestingModule } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../../src/app.module";
 
-jest.setTimeout(60000); // 60 secondes pour les hooks longs
+jest.setTimeout(300000); // 5 minutes pour l'ensemble (sécuritaire)
 
 let app: INestApplication;
-let mongoContainer: StartedTestContainer;
+let mongoContainer: StartedTestContainer | undefined;
 
 beforeAll(async () => {
-	// 1️⃣ Démarrer un conteneur MongoDB temporaire
-	mongoContainer = await new GenericContainer("mongo:7.0")
-		.withExposedPorts(27017)
-		.withEnvironment({
-			MONGO_INITDB_ROOT_USERNAME: "testuser",
-			MONGO_INITDB_ROOT_PASSWORD: "testpass",
-			MONGO_INITDB_DATABASE: "testdb",
-		})
-		.withWaitStrategy(Wait.forLogMessage("Waiting for connections")) // attend que Mongo soit prêt
-		.start();
+	// Timeout généreux pour le démarrage du container
+	jest.setTimeout(300000);
 
-	const mongoPort = mongoContainer.getMappedPort(27017);
-	const mongoHost = mongoContainer.getHost();
-	const mongoUri = `mongodb://testuser:testpass@${mongoHost}:${mongoPort}/testdb?authSource=admin`;
+	if (process.env.DATABASE_URL) {
+		console.log("Using DATABASE_URL from env (CI service).");
+	} else {
+		// Démarre testcontainers en local/dev
+		// Utiliser la log message et le listening port, et augmenter le startup timeout
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+		mongoContainer = (await new GenericContainer("mongo:7.0")
+			.withExposedPorts(27017)
+			.withEnvironment({
+				MONGO_INITDB_ROOT_USERNAME: "testuser",
+				MONGO_INITDB_ROOT_PASSWORD: "testpass",
+				MONGO_INITDB_DATABASE: "testdb",
+			})
+			// Wait strategy plus robuste : log message OR port listening
+			.withWaitStrategy(Wait.forLogMessage("Waiting for connections"))
+			.withStartupTimeout(180_000) // 3 minutes
+			.start()) as unknown as StartedTestContainer;
 
-	// 2️⃣ Définir les variables d'environnement nécessaires
-	process.env.DATABASE_URL = mongoUri;
-	process.env.JWT_SECRET = "testsecret"; // Obligatoire pour AuthModule
-	process.env.JWT_EXPIRES_IN = "3600"; // Obligatoire pour AuthModule
+		// En complément, si tu veux être ultra-robuste, tu peux attendre explicitement le port :
+		// await new Promise((res) => setTimeout(res, 2000)); // petit délai après start()
+		const mongoPort = mongoContainer.getMappedPort(27017);
+		const mongoHost = mongoContainer.getHost();
+		process.env.DATABASE_URL = `mongodb://testuser:testpass@${mongoHost}:${mongoPort}/testdb?authSource=admin`;
+	}
+
+	// variables communes
+	process.env.JWT_SECRET = "testsecret";
+	process.env.JWT_EXPIRES_IN = "3600";
 	process.env.NODE_ENV = "test";
-	process.env.SERVER_PORT = "0"; // port aléatoire
+	process.env.SERVER_PORT = "0";
 
-	// 3️⃣ Créer le module complet
 	const moduleRef: TestingModule = await Test.createTestingModule({
 		imports: [AppModule],
 	}).compile();
 
-	// 4️⃣ Initialiser l'application
-	app = moduleRef.createNestApplication();
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+	app = moduleRef.createNestApplication() as INestApplication;
 	await app.init();
-
-	// 5️⃣ Écouter sur un port aléatoire
 	await app.listen(0);
 });
 
@@ -50,14 +59,20 @@ afterAll(async () => {
 		await app.close();
 	}
 	if (mongoContainer) {
+		// récupère les logs pour débogage si besoin
+		try {
+			const logs = await mongoContainer.logs();
+			console.log("Mongo container logs (tail):", logs);
+		} catch (err) {
+			// ignore
+		}
 		await mongoContainer.stop();
 	}
 });
 
 describe("Events Module (e2e)", () => {
 	it("GET /events should return 401 without token", async () => {
-		const response = await request(app.getHttpServer()).get("/events").expect(401); // Auth JWT active
-
+		const response = await request(app.getHttpServer()).get("/events").expect(401);
 		expect(response.body).toBeDefined();
 	});
 });
