@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.eventix.data.local.AppDatabase
-import com.example.eventix.data.local.EventEntity
 import com.example.eventix.data.local.toUiEvent
 
 @Composable
@@ -84,7 +83,7 @@ fun NoNetworkScreen(navController: NavController) {
 
                     items(uiEvents) { event ->
                         // On réutilise ta EventCard existante
-                        EventCard(event = event) {
+                        EventCard(event = event, enabled = false, onClick = {}) {
                             // Navigation vers le détail (attention, le détail doit aussi gérer le offline !)
                             navController.navigate("event/${event.id}")
                         }
@@ -111,9 +110,6 @@ fun NoNetworkScreen(navController: NavController) {
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { navController.navigate("login") }) {
-                        Text("Se connecter")
-                    }
                 }
             }
         }

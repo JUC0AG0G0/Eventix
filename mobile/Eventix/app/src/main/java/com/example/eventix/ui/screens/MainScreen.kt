@@ -1,7 +1,6 @@
 package com.example.eventix.ui.screens
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -280,7 +279,10 @@ fun MainScreen(navController: NavController) {
                     contentPadding = PaddingValues(top = 24.dp, bottom = 64.dp)
                 ) {
                     items(events) { event ->
-                        EventCard(event = event) {
+                        EventCard(event = event, onClick = {
+                            navController.navigate("event/${event.id}")
+                        }) {
+                            // Navigation vers le détail (attention, le détail doit aussi gérer le offline !)
                             navController.navigate("event/${event.id}")
                         }
                     }
@@ -302,11 +304,11 @@ fun MainScreen(navController: NavController) {
 }
 
 @Composable
-fun EventCard(event: Event, onClick: () -> Unit) {
+fun EventCard(event: Event, enabled: Boolean = true, onClick: () -> Unit, function: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
