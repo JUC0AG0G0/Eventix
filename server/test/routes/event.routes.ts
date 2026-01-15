@@ -1,5 +1,5 @@
 import { INestApplication } from "@nestjs/common";
-import request from "supertest"; // <--- C'est ici le changement important (pas d'étoile *)
+import request from "supertest";
 
 export class EventRoutes {
 	constructor(
@@ -24,6 +24,11 @@ export class EventRoutes {
 
 	getOne(id: string) {
 		return this.auth(request(this.httpServer).get(`/events/${id}`));
+	}
+
+	sync(since?: string) {
+		const query = since ? `?since=${since}` : "";
+		return this.auth(request(this.httpServer).get(`/events/sync${query}`));
 	}
 
 	register(eventId: string) {
