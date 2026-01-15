@@ -1,4 +1,11 @@
-import { Injectable, ConflictException, InternalServerErrorException, Inject, forwardRef } from "@nestjs/common";
+import {
+	Injectable,
+	ConflictException,
+	InternalServerErrorException,
+	Inject,
+	forwardRef,
+	BadRequestException,
+} from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import * as bcrypt from "bcrypt";
@@ -25,6 +32,11 @@ export class UsersService {
 
 	async create(dto: RegisterUserDto) {
 		const { email, password, firstName, lastName } = dto;
+
+		if (!password) {
+			throw new BadRequestException("Password is required");
+		}
+
 		const normalizedEmail = (email || "").trim().toLowerCase();
 
 		const existing = await this.userModel.findOne({ email: normalizedEmail }).lean();
