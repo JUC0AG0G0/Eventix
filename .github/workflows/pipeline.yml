@@ -12,8 +12,9 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: eventix-api
-  # Le dossier racine où se trouve action-runner. On déploiera à côté.
   PROJECT_ROOT: "FilRouge403-Eventix"
+  # On définit une variable VERSION pour l'utiliser partout facilement
+  VERSION: "v${{ github.run_number }}"
 
 jobs:
   # --------- JOB 1 : CI/CD - Build et publication Docker ----------
@@ -23,7 +24,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ---- BACKEND NODE (IMAGE DOCKER) ----
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -32,16 +32,17 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - name: Build backend Docker image
+        # On tag avec :latest ET avec :v{numero}
         run: |
           docker build -f server/Dockerfile \
             -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest \
-            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }} \
+            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ env.VERSION }} \
             server
 
       - name: Push backend image to GHCR
         run: |
           docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest
-          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ env.VERSION }}
 
 
   # --------- JOB 2 : Déploiement LOCAL sur le VPS ----------
@@ -51,40 +52,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Nécessaire pour récupérer le docker-compose.yml et le init-mongo.js
 
       - name: Préparer les fichiers de configuration
         run: |
-          # On se place dans le dossier racine du projet sur le serveur
           cd $HOME/${{ env.PROJECT_ROOT }}
-            
+          
           echo "==> Nettoyage préventif"
-          # Si init-mongo.js est devenu un dossier par erreur, on le supprime
           rm -rf init-mongo.js
-          # On supprime aussi l'ancien docker-compose pour être propre
           rm -f docker-compose.yml
-            
+          
           echo "==> Copie des fichiers de configuration"
-          # 1. Copie du Docker Compose
           cp ${{ github.workspace }}/docker-compose.yml .
-        
-          # 2. Copie du script d'init Mongo (C'EST ICI LA MODIF)
           cp ${{ github.workspace }}/init-mongo.js .
-        
-          echo "✅ Fichiers copiés (compose + init-mongo)."
+          
+          echo "✅ Fichiers copiés."
 
       - name: Générer le fichier .env dynamique
         run: |
           cd $HOME/${{ env.PROJECT_ROOT }}
           
-          echo "==> Génération du fichier .env à partir des Secrets GitHub"
-          
-          # La commande cat <<EOF permet d'écrire plusieurs lignes dans le fichier
+          echo "==> Génération du fichier .env"
           cat <<EOF > .env
           # Environment
           NODE_ENV=${{ secrets.ENV_NODE_ENV }}
-
-          # Server Configuration
           SERVER_PORT=${{ secrets.ENV_SERVER_PORT }}
           LOG_LEVEL=${{ secrets.ENV_LOG_LEVEL }}
           SWAGGER_ENABLED=${{ secrets.ENV_SWAGGER_ENABLED }}
@@ -95,8 +85,6 @@ jobs:
           MONGO_DB=${{ secrets.ENV_MONGO_DB }}
           MONGO_USER=${{ secrets.ENV_MONGO_USER }}
           MONGO_PASSWORD=${{ secrets.ENV_MONGO_PASSWORD }}
-
-          # MongoDB Connection URL (Reconstruite explicitement pour éviter les erreurs d'interpolation)
           DATABASE_URL="${{ secrets.ENV_DB_HOST }}://${{ secrets.ENV_MONGO_USER }}:${{ secrets.ENV_MONGO_PASSWORD }}@${{ secrets.ENV_DB_HOST }}:${{ secrets.ENV_MONGO_PORT }}/${{ secrets.ENV_MONGO_DB }}?authSource=admin"
 
           # JWT Configuration
@@ -107,9 +95,7 @@ jobs:
           PROJECT_NAME=${{ secrets.ENV_PROJECT_NAME }}
           EOF
           
-          echo "✅ Fichier .env généré avec succès."
-          # Optionnel : Afficher le contenu (sauf les mots de passe) pour debug
-          # cat .env | grep -v "PASSWORD\|SECRET"
+          echo "✅ Fichier .env généré."
 
       - name: Mise à jour et redémarrage des conteneurs
         run: |
@@ -119,14 +105,16 @@ jobs:
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
           echo "==> Téléchargement de la dernière image"
+          # On continue de puller "latest" pour le déploiement automatique, 
+          # car "latest" correspond maintenant exactement à la version vXX qu'on vient de builder.
           docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/eventix-api:latest
 
           echo "==> Redémarrage des services Docker Compose"
-          # On utilise --env-file .env pour être sûr qu'il charge celui qu'on vient de créer
           docker compose --env-file .env down
           docker compose --env-file .env up -d --remove-orphans
 
-          echo "✅ Déploiement backend terminé."
+          echo "✅ Déploiement backend terminé (Version ${{ env.VERSION }})."
+
 
   # --------- JOB 3 : Build Android APK (Sur le cloud Ubuntu) ----------
   build_apk:
@@ -179,7 +167,6 @@ jobs:
         id: prepare_artifact
         run: |
           set -e
-          # Trouver le fichier original
           ORIGINAL_PATH=$(find ${{ env.APP_DIR }}/ -type f -iname "*release*.apk" | head -n 1 || true)
           
           if [ -z "$ORIGINAL_PATH" ]; then
@@ -187,14 +174,13 @@ jobs:
             exit 1
           fi
 
-          # Définir le nouveau nom souhaité
-          NEW_NAME="eventix-${{ github.sha }}.apk"
+          # UTILISATION DE LA VERSION DANS LE NOM DU FICHIER
+          NEW_NAME="eventix-${{ env.VERSION }}.apk"
           NEW_PATH="$(dirname "$ORIGINAL_PATH")/$NEW_NAME"
 
-          # Renommer le fichier
           mv "$ORIGINAL_PATH" "$NEW_PATH"
 
-          echo "APK found and renamed to: $NEW_PATH"
+          echo "APK renamed to: $NEW_PATH"
           echo "apk_path=$NEW_PATH" >> $GITHUB_OUTPUT
 
       - name: Set RELEASE_TOKEN
@@ -209,8 +195,9 @@ jobs:
       - name: Create Release & Upload APK
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: apk-${{ github.sha }}
-          name: eventix-apk-${{ github.sha }}
+          tag_name: ${{ env.VERSION }}
+          name: "Release ${{ env.VERSION }}"
+          body: "Automated release for version ${{ env.VERSION }} (Commit ${{ github.sha }})"
           draft: false
           prerelease: false
           files: ${{ steps.prepare_artifact.outputs.apk_path }}
