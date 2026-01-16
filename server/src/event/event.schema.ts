@@ -1,7 +1,9 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document } from "mongoose";
+import { HydratedDocument } from "mongoose";
 
-export type EventDocument = Event & Document;
+//export type EventDocument = Event & Document;
+export type EventDocument = HydratedDocument<Event>;
 
 @Schema({ collection: "event", timestamps: false })
 export class Event {
