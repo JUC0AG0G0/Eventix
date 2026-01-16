@@ -115,6 +115,31 @@ export class EventController {
 		return;
 	}
 
+	@Post("unregister")
+	@UseGuards(RolesGuard)
+	@Roles("user")
+	@ApiOperation({
+		summary: "Désinscrire l'utilisateur connecté d'un événement",
+		description: "Permet à un utilisateur de se désinscrire. Met à jour les places et le statut de l'événement.",
+	})
+	@ApiBody({
+		type: RegisterEventDto,
+		description: "DTO contenant l'identifiant de l'événement duquel se désinscrire",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Désinscription réussie.",
+	})
+	@ApiResponse({ status: 400, description: "L'utilisateur n'est pas inscrit à cet événement." })
+	@ApiResponse({ status: 401, description: "Token invalide ou absent." })
+	@ApiResponse({ status: 403, description: "Rôle insuffisant." })
+	@ApiResponse({ status: 404, description: "Événement introuvable." })
+	@ApiResponse({ status: 409, description: "Conflit : L'événement est annulé (event_cancel)." })
+	async unregister(@Body() dto: RegisterEventDto, @CurrentUser() user: JwtPayload) {
+		await this.eventService.unregisterUser(dto.id, String(user.sub));
+		return;
+	}
+
 	@Patch(":id")
 	@UseGuards(RolesGuard)
 	@Roles("admin")
