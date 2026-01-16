@@ -57,7 +57,13 @@ jobs:
         run: |
           # On se place dans le dossier racine du projet sur le serveur
           cd $HOME/${{ env.PROJECT_ROOT }}
-        
+            
+          echo "==> Nettoyage préventif"
+          # Si init-mongo.js est devenu un dossier par erreur, on le supprime
+          rm -rf init-mongo.js
+          # On supprime aussi l'ancien docker-compose pour être propre
+          rm -f docker-compose.yml
+            
           echo "==> Copie des fichiers de configuration"
           # 1. Copie du Docker Compose
           cp ${{ github.workspace }}/docker-compose.yml .
