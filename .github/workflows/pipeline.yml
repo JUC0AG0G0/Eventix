@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Nécessaire pour récupérer le docker-compose.yml
+        # Nécessaire pour récupérer le docker-compose.yml et le init-mongo.js
 
       - name: Préparer les fichiers de configuration
         run: |
@@ -62,6 +62,10 @@ jobs:
           echo "==> Copie du docker-compose.yml"
           # On copie le fichier depuis le workspace du runner vers le dossier parent
           cp ${{ github.workspace }}/docker-compose.yml .
+          
+          echo "==> Copie du init-mongo.js"
+          # On copie le fichier depuis le workspace du runner vers le dossier parent
+          cp ${{ github.workspace }}/init-mongo.js .
 
       - name: Générer le fichier .env dynamique
         run: |
