@@ -56,16 +56,16 @@ jobs:
       - name: Préparer les fichiers de configuration
         run: |
           # On se place dans le dossier racine du projet sur le serveur
-          # (Le dossier qui contient déjà action-runner)
           cd $HOME/${{ env.PROJECT_ROOT }}
-
-          echo "==> Copie du docker-compose.yml"
-          # On copie le fichier depuis le workspace du runner vers le dossier parent
+        
+          echo "==> Copie des fichiers de configuration"
+          # 1. Copie du Docker Compose
           cp ${{ github.workspace }}/docker-compose.yml .
-          
-          echo "==> Copie du init-mongo.js"
-          # On copie le fichier depuis le workspace du runner vers le dossier parent
+        
+          # 2. Copie du script d'init Mongo (C'EST ICI LA MODIF)
           cp ${{ github.workspace }}/init-mongo.js .
+        
+          echo "✅ Fichiers copiés (compose + init-mongo)."
 
       - name: Générer le fichier .env dynamique
         run: |
