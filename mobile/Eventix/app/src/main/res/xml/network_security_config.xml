@@ -3,9 +3,7 @@
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">192.168.1.35</domain>
-        <domain includeSubdomains="true">10.6.251.38</domain>
-        <domain includeSubdomains="true">10.8.251.46</domain>
-        <domain includeSubdomains="true">10.6.0.2</domain>
-
+        <domain includeSubdomains="true">57.131.34.50</domain>
+        <domain includeSubdomains="true">eventix.julescorneille.fr</domain>
     </domain-config>
 </network-security-config>
