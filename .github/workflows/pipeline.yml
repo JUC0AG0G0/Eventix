@@ -12,16 +12,18 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: eventix-api
+  PROJECT_ROOT: "FilRouge403-Eventix"
+  # On définit une variable VERSION pour l'utiliser partout facilement
+  VERSION: "v${{ github.run_number }}"
 
 jobs:
   # --------- JOB 1 : CI/CD - Build et publication Docker ----------
   build_and_publish:
-    runs-on: self-hosted
+    runs-on: [self-hosted, eventix, vps]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ---- BACKEND NODE (IMAGE DOCKER) ----
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -30,48 +32,91 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - name: Build backend Docker image
+        # On tag avec :latest ET avec :v{numero}
         run: |
           docker build -f server/Dockerfile \
             -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest \
-            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }} \
+            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ env.VERSION }} \
             server
 
       - name: Push backend image to GHCR
         run: |
           docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest
-          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ env.VERSION }}
 
 
-  # --------- JOB 2 : Déploiement sur serveur de PROD ----------
+  # --------- JOB 2 : Déploiement LOCAL sur le VPS ----------
   deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, eventix, vps]
     needs: build_and_publish
     steps:
-      - name: Vérifier la connexion SSH
-        run: ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} "echo '✅ SSH OK'"
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Déployer le backend sur le serveur de production
-        uses: appleboy/ssh-action@v1.1.0
-        with:
-          host: ${{ secrets.SSH_HOST_PROD }}
-          username: ${{ secrets.SSH_USER_PROD }}
-          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
-          script: |
-            echo "==> Connexion à GitHub Container Registry"
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+      - name: Préparer les fichiers de configuration
+        run: |
+          cd $HOME/${{ env.PROJECT_ROOT }}
+          
+          echo "==> Nettoyage préventif"
+          rm -rf init-mongo.js
+          rm -f docker-compose.yml
+          
+          echo "==> Copie des fichiers de configuration"
+          cp ${{ github.workspace }}/docker-compose.yml .
+          cp ${{ github.workspace }}/init-mongo.js .
+          
+          echo "✅ Fichiers copiés."
 
-            echo "==> Téléchargement de la dernière image backend"
-            docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/eventix-api:latest
+      - name: Générer le fichier .env dynamique
+        run: |
+          cd $HOME/${{ env.PROJECT_ROOT }}
+          
+          echo "==> Génération du fichier .env"
+          cat <<EOF > .env
+          # Environment
+          NODE_ENV=${{ secrets.ENV_NODE_ENV }}
+          SERVER_PORT=${{ secrets.ENV_SERVER_PORT }}
+          LOG_LEVEL=${{ secrets.ENV_LOG_LEVEL }}
+          SWAGGER_ENABLED=${{ secrets.ENV_SWAGGER_ENABLED }}
 
-            echo "==> Mise à jour des conteneurs (backend + MongoDB)"
-            cd ~/Bureau/fil-rouge-jules-403/Eventix
-            docker compose --env-file .env -f docker-compose.yml down
-            docker compose --env-file .env -f docker-compose.yml up -d
+          # Database Configuration
+          DB_HOST=${{ secrets.ENV_DB_HOST }}
+          MONGO_PORT=${{ secrets.ENV_MONGO_PORT }}
+          MONGO_DB=${{ secrets.ENV_MONGO_DB }}
+          MONGO_USER=${{ secrets.ENV_MONGO_USER }}
+          MONGO_PASSWORD=${{ secrets.ENV_MONGO_PASSWORD }}
+          DATABASE_URL="${{ secrets.ENV_DB_HOST }}://${{ secrets.ENV_MONGO_USER }}:${{ secrets.ENV_MONGO_PASSWORD }}@${{ secrets.ENV_DB_HOST }}:${{ secrets.ENV_MONGO_PORT }}/${{ secrets.ENV_MONGO_DB }}?authSource=admin"
 
-            echo "✅ Déploiement backend terminé avec succès."
+          # JWT Configuration
+          JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ secrets.ENV_JWT_EXPIRES_IN }}
+
+          # Project Name
+          PROJECT_NAME=${{ secrets.ENV_PROJECT_NAME }}
+          EOF
+          
+          echo "✅ Fichier .env généré."
+
+      - name: Mise à jour et redémarrage des conteneurs
+        run: |
+          cd $HOME/${{ env.PROJECT_ROOT }}
+
+          echo "==> Connexion au registre"
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+          echo "==> Téléchargement de la dernière image"
+          # On continue de puller "latest" pour le déploiement automatique, 
+          # car "latest" correspond maintenant exactement à la version vXX qu'on vient de builder.
+          docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/eventix-api:latest
+
+          echo "==> Redémarrage des services Docker Compose"
+          docker compose --env-file .env down
+          docker compose --env-file .env up -d --remove-orphans
+
+          echo "✅ Déploiement backend terminé (Version ${{ env.VERSION }})."
 
 
-  # --------- JOB : Build Android APK et publier sur GitHub Release ----------
+  # --------- JOB 3 : Build Android APK (Sur le cloud Ubuntu) ----------
   build_apk:
     name: Build Android APK & Publish Release
     runs-on: ubuntu-latest
@@ -89,7 +134,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Optional Set up Android SDK (no inputs to avoid warnings)
+      - name: Optional Set up Android SDK
         uses: android-actions/setup-android@v2
 
       - name: Cache Gradle
@@ -118,27 +163,27 @@ jobs:
           chmod +x $GRADLE_WRAPPER
           ./gradlew assembleRelease --no-daemon
 
-      - name: Find built APK
-        id: find_apk
+      - name: Find and Rename built APK
+        id: prepare_artifact
         run: |
           set -e
-          APK_PATH=$(find ${{ env.APP_DIR }}/ -type f -iname "*release*.apk" | head -n 1 || true)
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: No release APK found. Listing build output for debug:" >&2
-            find ${{ env.APP_DIR }}/ -maxdepth 6 -type f -print
+          ORIGINAL_PATH=$(find ${{ env.APP_DIR }}/ -type f -iname "*release*.apk" | head -n 1 || true)
+          
+          if [ -z "$ORIGINAL_PATH" ]; then
+            echo "ERROR: No release APK found." >&2
             exit 1
           fi
-          echo "Found APK: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
-      - name: Upload APK as artifact (backup)
-        uses: actions/upload-artifact@v4
-        with:
-          name: eventix-apk
-          path: ${{ steps.find_apk.outputs.apk_path }}
+          # UTILISATION DE LA VERSION DANS LE NOM DU FICHIER
+          NEW_NAME="eventix-${{ env.VERSION }}.apk"
+          NEW_PATH="$(dirname "$ORIGINAL_PATH")/$NEW_NAME"
 
-      # Set release token: prefer GHCR_PAT (if present), otherwise use built-in GITHUB_TOKEN
-      - name: Set RELEASE_TOKEN (GHCR_PAT or fallback to GITHUB_TOKEN)
+          mv "$ORIGINAL_PATH" "$NEW_PATH"
+
+          echo "APK renamed to: $NEW_PATH"
+          echo "apk_path=$NEW_PATH" >> $GITHUB_OUTPUT
+
+      - name: Set RELEASE_TOKEN
         run: |
           if [ -n "${{ secrets.GHCR_PAT }}" ]; then
             echo "RELEASE_TOKEN=${{ secrets.GHCR_PAT }}" >> $GITHUB_ENV
@@ -146,24 +191,15 @@ jobs:
             echo "RELEASE_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
           fi
 
-      - name: Create GitHub Release (softprops)
-        id: create_release
+      # Cette seule étape crée la Release ET upload le fichier
+      - name: Create Release & Upload APK
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: apk-${{ github.sha }}
-          name: eventix-apk-${{ github.sha }}
-          body: "Automated APK build for commit ${{ github.sha }}"
+          tag_name: ${{ env.VERSION }}
+          name: "Release ${{ env.VERSION }}"
+          body: "Automated release for version ${{ env.VERSION }} (Commit ${{ github.sha }})"
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
-
-      - name: Upload APK to Release (actions/upload-release-asset@v1)
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_apk.outputs.apk_path }}
-          asset_name: eventix-${{ github.sha }}.apk
-          asset_content_type: application/vnd.android.package-archive
+          files: ${{ steps.prepare_artifact.outputs.apk_path }}
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
