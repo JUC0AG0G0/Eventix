@@ -42,8 +42,4 @@ export class EventRoutes {
 	delete(id: string) {
 		return this.auth(request(this.httpServer).delete(`/events/${id}`));
 	}
-
-	unregister(eventId: string) {
-		return this.auth(request(this.httpServer).post("/events/unregister").send({ id: eventId }));
-	}
 }
