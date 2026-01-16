@@ -163,7 +163,7 @@ export class EventController {
 	async delete(@Param("id") idEvent: string) {
 		const result = await this.eventService.deleteEvent(idEvent);
 
-		if (result?.Status === "Canceled") {
+		if (result?.Status === "Cancelled") {
 			return { action: "canceled" };
 		}
 
