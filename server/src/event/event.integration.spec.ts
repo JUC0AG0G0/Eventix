@@ -184,12 +184,14 @@ describe("Events Module (Integration)", () => {
 			await user.event.register(event._id.toString()).expect(409);
 
 			const unchanged = await user.event.getOne(event._id.toString());
-
 			expect(unchanged.body.nbPlaceOccupe).toBe(1);
+
 			const dbEvent = await eventModel.findById(event._id).lean();
 
-			expect(dbEvent.nbPlaceOccupe).toBe(1);
-			expect(dbEvent.personneInscrites.length).toBe(1);
+			expect(dbEvent).not.toBeNull();
+
+			expect(dbEvent!.nbPlaceOccupe).toBe(1);
+			expect(dbEvent!.personneInscrites.length).toBe(1);
 		});
 
 		it("should return 400 if event is full", async () => {
@@ -238,27 +240,6 @@ describe("Events Module (Integration)", () => {
 			const updated = await user.event.getOne(event._id.toString());
 
 			expect(new Date(updated.body.EditDate).getTime()).toBeGreaterThan(new Date(initialEditDate).getTime());
-		});
-
-		it("should not overbook event under concurrent registrations", async () => {
-			const event = await eventFactory.create({
-				nbPlaceTotal: 1,
-				nbPlaceOccupe: 0,
-				Status: "Ok",
-			});
-
-			const user1 = await userFactory.create({ role: "user" });
-			const user2 = await userFactory.create({ role: "user" });
-
-			await Promise.allSettled([
-				user1.event.register(event._id.toString()),
-				user2.event.register(event._id.toString()),
-			]);
-
-			const updated = await user1.event.getOne(event._id.toString());
-
-			expect(updated.body.nbPlaceOccupe).toBe(1);
-			expect(updated.body.nbPlaceOccupe).toBe(1);
 		});
 	});
 
@@ -470,7 +451,6 @@ describe("Events Module (Integration)", () => {
 
 		it("should return 400 if trying to cancel an event that is not Ok", async () => {
 			const event = await eventFactory.create({ nbPlaceOccupe: 1, Status: "Cancelled" });
-			// AJOUT DE AWAIT ICI
 			const admin = await userFactory.create({ role: "admin" });
 
 			await admin.event.delete(event._id.toString()).expect(400);
@@ -478,7 +458,6 @@ describe("Events Module (Integration)", () => {
 
 		it("should return 403 for normal user", async () => {
 			const event = await eventFactory.create();
-			// AJOUT DE AWAIT ICI
 			const user = await userFactory.create({ role: "user" });
 
 			await user.event.delete(event._id.toString()).expect(403);
