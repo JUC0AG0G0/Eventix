@@ -3,6 +3,11 @@ import { Types } from "mongoose";
 import { setupTestApp, teardownTestApp, TestContext, TEST_TIMEOUT } from "../../test/utils/test-setup";
 import { UserFactory } from "../../test/utils/user-factory";
 import { EventFactory } from "../../test/utils/event-factory";
+import { getModelToken } from "@nestjs/mongoose";
+import { Event } from "./event.schema";
+import { Model } from "mongoose";
+
+let eventModel: Model<Event>;
 
 describe("Events Module (Integration)", () => {
 	let context: TestContext;
@@ -17,6 +22,7 @@ describe("Events Module (Integration)", () => {
 		app = context.app;
 		userFactory = new UserFactory(app);
 		eventFactory = new EventFactory(app);
+		eventModel = context.moduleRef.get(getModelToken(Event.name));
 	});
 
 	afterAll(async () => {
@@ -28,58 +34,241 @@ describe("Events Module (Integration)", () => {
 	});
 
 	describe("POST /events/register", () => {
-		it("should successfully register a user (201)", async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 0 });
+		it("should successfully register a user (201) and update event data in DB", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 10,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+				personneInscrites: [],
+			});
+
+			const initialEditDate = event.EditDate;
 
 			const user = await userFactory.create({ role: "user" });
 
 			await user.event.register(event._id.toString()).expect(201);
 
-			const check = await user.event.getOne(event._id.toString());
-			expect(check.body.AlreadyRegister).toBe(true);
+			// Vérif API
+			const apiEvent = await user.event.getOne(event._id.toString());
+
+			expect(apiEvent.body.AlreadyRegister).toBe(true);
+			expect(apiEvent.body.nbPlaceOccupe).toBe(1);
+
+			// Vérif DB réelle
+			const dbEvent = await eventModel.findById(event._id).lean();
+
+			expect(dbEvent.personneInscrites.map(String)).toContain(user.userData._id.toString());
+
+			expect(new Date(dbEvent.EditDate).getTime()).toBeGreaterThan(new Date(initialEditDate).getTime());
+		});
+
+		it('should automatically change status to "Complet" when last place is taken', async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 1,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+			});
+
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const apiEvent = await user.event.getOne(event._id.toString());
+			expect(apiEvent.body.Status).toBe("Complet");
+
+			const dbEvent = await eventModel.findById(event._id).lean();
+			expect(dbEvent.nbPlaceOccupe).toBe(1);
+			expect(dbEvent.personneInscrites.length).toBe(1);
+		});
+
+		it("should not mutate event when user already registered", async () => {
+			const user = await userFactory.create({ role: "user" });
+
+			const event = await eventFactory.create({
+				nbPlaceTotal: 5,
+				nbPlaceOccupe: 1,
+				personneInscrites: [user.userData._id],
+			});
+
+			await user.event.register(event._id.toString()).expect(409);
+
+			const dbEvent = await eventModel.findById(event._id).lean();
+
+			expect(dbEvent.nbPlaceOccupe).toBe(1);
+			expect(dbEvent.personneInscrites.length).toBe(1);
+		});
+
+		it("should not overbook event under concurrent registrations", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 1,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+			});
+
+			const user1 = await userFactory.create({ role: "user" });
+			const user2 = await userFactory.create({ role: "user" });
+
+			await Promise.allSettled([
+				user1.event.register(event._id.toString()),
+				user2.event.register(event._id.toString()),
+			]);
+
+			const dbEvent = await eventModel.findById(event._id).lean();
+
+			expect(dbEvent.nbPlaceOccupe).toBe(1);
+			expect(dbEvent.personneInscrites.length).toBe(1);
+		});
+
+		it("should keep status Ok if places are still available", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 5,
+				nbPlaceOccupe: 2,
+				Status: "Ok",
+			});
+
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const updated = await user.event.getOne(event._id.toString());
+
+			expect(updated.body.Status).toBe("Ok");
+		});
+
+		it('should automatically change status to "Complet" if last place is taken', async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 1,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+			});
+
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const updated = await user.event.getOne(event._id.toString());
+
+			expect(updated.body.Status).toBe("Complet");
+			expect(updated.body.nbPlaceOccupe).toBe(1);
+			expect(updated.body.nbPlaceOccupe).toBe(1);
+		});
+
+		it("should keep nbPlaceOccupe consistent with personneInscrites length", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 5,
+				nbPlaceOccupe: 0,
+				personneInscrites: [],
+			});
+
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const updated = await user.event.getOne(event._id.toString());
+
+			const dbEvent = await eventModel.findById(event._id).lean();
+
+			expect(dbEvent.nbPlaceOccupe).toBe(dbEvent.personneInscrites.length);
 		});
 
 		it("should return 404 if event not found", async () => {
 			const user = await userFactory.create({ role: "user" });
 			const fakeId = new Types.ObjectId().toString();
+
 			await user.event.register(fakeId).expect(404);
 		});
 
-		it("should return 409 (Conflict) if user already registered", async () => {
+		it("should return 409 if user already registered and should not mutate event", async () => {
 			const user = await userFactory.create({ role: "user" });
 
 			const event = await eventFactory.create({
-				nbPlaceTotal: 10,
+				nbPlaceTotal: 5,
+				nbPlaceOccupe: 1,
 				personneInscrites: [new Types.ObjectId(user.userData._id)],
 			});
 
 			await user.event.register(event._id.toString()).expect(409);
+
+			const unchanged = await user.event.getOne(event._id.toString());
+
+			expect(unchanged.body.nbPlaceOccupe).toBe(1);
+			const dbEvent = await eventModel.findById(event._id).lean();
+
+			expect(dbEvent.nbPlaceOccupe).toBe(1);
+			expect(dbEvent.personneInscrites.length).toBe(1);
 		});
 
 		it("should return 400 if event is full", async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 10 });
+			const event = await eventFactory.create({
+				nbPlaceTotal: 2,
+				nbPlaceOccupe: 2,
+				Status: "Ok",
+			});
+
 			const user = await userFactory.create({ role: "user" });
 
 			const res = await user.event.register(event._id.toString()).expect(400);
+
 			expect(res.body.message).toContain("Event is full");
+
+			const unchanged = await user.event.getOne(event._id.toString());
+			expect(unchanged.body.nbPlaceOccupe).toBe(2);
 		});
 
 		it("should return 400 if event status is not Ok", async () => {
-			const event = await eventFactory.create({ Status: "Cancelled", nbPlaceTotal: 10 });
+			const event = await eventFactory.create({
+				Status: "Cancelled",
+				nbPlaceTotal: 10,
+				nbPlaceOccupe: 0,
+			});
+
 			const user = await userFactory.create({ role: "user" });
 
 			const res = await user.event.register(event._id.toString()).expect(400);
+
 			expect(res.body.message).toMatch(/status is "Cancelled"/);
+
+			const unchanged = await user.event.getOne(event._id.toString());
+			expect(unchanged.body.nbPlaceOccupe).toBe(0);
 		});
 
-		it('should automatically change status to "Complet" if last place is taken', async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 1, nbPlaceOccupe: 0, Status: "Ok" });
+		it("should update EditDate when status switches to Complet", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 1,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+			});
+
+			const initialEditDate = event.EditDate;
+
 			const user = await userFactory.create({ role: "user" });
 
-			await user.event.register(event._id.toString()).expect(201);
+			await user.event.register(event._id.toString());
 
-			const updatedEvent = await user.event.getOne(event._id.toString());
-			expect(updatedEvent.body.Status).toBe("Complet");
+			const updated = await user.event.getOne(event._id.toString());
+
+			expect(new Date(updated.body.EditDate).getTime()).toBeGreaterThan(new Date(initialEditDate).getTime());
+		});
+
+		it("should not overbook event under concurrent registrations", async () => {
+			const event = await eventFactory.create({
+				nbPlaceTotal: 1,
+				nbPlaceOccupe: 0,
+				Status: "Ok",
+			});
+
+			const user1 = await userFactory.create({ role: "user" });
+			const user2 = await userFactory.create({ role: "user" });
+
+			await Promise.allSettled([
+				user1.event.register(event._id.toString()),
+				user2.event.register(event._id.toString()),
+			]);
+
+			const updated = await user1.event.getOne(event._id.toString());
+
+			expect(updated.body.nbPlaceOccupe).toBe(1);
+			expect(updated.body.nbPlaceOccupe).toBe(1);
 		});
 	});
 

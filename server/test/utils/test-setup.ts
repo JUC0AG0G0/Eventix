@@ -8,6 +8,7 @@ export const TEST_TIMEOUT = 300000;
 export interface TestContext {
 	app: INestApplication;
 	mongoContainer: StartedTestContainer;
+	moduleRef: TestingModule;
 }
 
 export async function setupTestApp(): Promise<TestContext> {
@@ -44,7 +45,7 @@ export async function setupTestApp(): Promise<TestContext> {
 	await app.init();
 	await app.listen(0);
 
-	return { app, mongoContainer };
+	return { app, mongoContainer, moduleRef };
 }
 
 export async function teardownTestApp(context: TestContext) {
