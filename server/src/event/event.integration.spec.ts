@@ -27,6 +27,62 @@ describe("Events Module (Integration)", () => {
 		await eventFactory.cleanup();
 	});
 
+	describe("POST /events/register", () => {
+		it("should successfully register a user (201)", async () => {
+			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 0 });
+
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const check = await user.event.getOne(event._id.toString());
+			expect(check.body.AlreadyRegister).toBe(true);
+		});
+
+		it("should return 404 if event not found", async () => {
+			const user = await userFactory.create({ role: "user" });
+			const fakeId = new Types.ObjectId().toString();
+			await user.event.register(fakeId).expect(404);
+		});
+
+		it("should return 409 (Conflict) if user already registered", async () => {
+			const user = await userFactory.create({ role: "user" });
+
+			const event = await eventFactory.create({
+				nbPlaceTotal: 10,
+				personneInscrites: [new Types.ObjectId(user.userData._id)],
+			});
+
+			await user.event.register(event._id.toString()).expect(409);
+		});
+
+		it("should return 400 if event is full", async () => {
+			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 10 });
+			const user = await userFactory.create({ role: "user" });
+
+			const res = await user.event.register(event._id.toString()).expect(400);
+			expect(res.body.message).toContain("Event is full");
+		});
+
+		it("should return 400 if event status is not Ok", async () => {
+			const event = await eventFactory.create({ Status: "Cancelled", nbPlaceTotal: 10 });
+			const user = await userFactory.create({ role: "user" });
+
+			const res = await user.event.register(event._id.toString()).expect(400);
+			expect(res.body.message).toMatch(/status is "Cancelled"/);
+		});
+
+		it('should automatically change status to "Complet" if last place is taken', async () => {
+			const event = await eventFactory.create({ nbPlaceTotal: 1, nbPlaceOccupe: 0, Status: "Ok" });
+			const user = await userFactory.create({ role: "user" });
+
+			await user.event.register(event._id.toString()).expect(201);
+
+			const updatedEvent = await user.event.getOne(event._id.toString());
+			expect(updatedEvent.body.Status).toBe("Complet");
+		});
+	});
+
 	describe("GET /events", () => {
 		it("should return a list of events", async () => {
 			await eventFactory.create({ Nom: "Event A" });
@@ -77,68 +133,6 @@ describe("Events Module (Integration)", () => {
 			// AJOUT DE AWAIT ICI
 			const user = await userFactory.create();
 			await user.event.getOne("invalid-id-string").expect(400);
-		});
-	});
-
-	describe("POST /events/register", () => {
-		it("should successfully register a user (201)", async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 0 });
-
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-
-			await user.event.register(event._id.toString()).expect(201);
-
-			const check = await user.event.getOne(event._id.toString());
-			expect(check.body.AlreadyRegister).toBe(true);
-		});
-
-		it("should return 404 if event not found", async () => {
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-			const fakeId = new Types.ObjectId().toString();
-			await user.event.register(fakeId).expect(404);
-		});
-
-		it("should return 409 (Conflict) if user already registered", async () => {
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-
-			const event = await eventFactory.create({
-				nbPlaceTotal: 10,
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
-			});
-
-			await user.event.register(event._id.toString()).expect(409);
-		});
-
-		it("should return 400 if event is full", async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 10 });
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-
-			const res = await user.event.register(event._id.toString()).expect(400);
-			expect(res.body.message).toContain("Event is full");
-		});
-
-		it("should return 400 if event status is not Ok", async () => {
-			const event = await eventFactory.create({ Status: "Cancelled", nbPlaceTotal: 10 });
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-
-			const res = await user.event.register(event._id.toString()).expect(400);
-			expect(res.body.message).toMatch(/status is "Cancelled"/);
-		});
-
-		it('should automatically change status to "Complet" if last place is taken', async () => {
-			const event = await eventFactory.create({ nbPlaceTotal: 1, nbPlaceOccupe: 0, Status: "Ok" });
-			// AJOUT DE AWAIT ICI
-			const user = await userFactory.create({ role: "user" });
-
-			await user.event.register(event._id.toString()).expect(201);
-
-			const updatedEvent = await user.event.getOne(event._id.toString());
-			expect(updatedEvent.body.Status).toBe("Complet");
 		});
 	});
 
