@@ -48,13 +48,13 @@ describe("Events Module (Integration)", () => {
 
 			await user.event.register(event._id.toString()).expect(201);
 
-			// Vérif API
+			// Vérification API
 			const apiEvent = await user.event.getOne(event._id.toString());
 
 			expect(apiEvent.body.AlreadyRegister).toBe(true);
 			expect(apiEvent.body.nbPlaceOccupe).toBe(1);
 
-			// Vérif DB réelle
+			// Vérification DB réelle
 			const dbEvent = await eventModel.findById(event._id).lean();
 
 			expect(dbEvent.personneInscrites.map(String)).toContain(user.userData._id.toString());
@@ -163,8 +163,6 @@ describe("Events Module (Integration)", () => {
 			const user = await userFactory.create({ role: "user" });
 
 			await user.event.register(event._id.toString()).expect(201);
-
-			const updated = await user.event.getOne(event._id.toString());
 
 			const dbEvent = await eventModel.findById(event._id).lean();
 
@@ -327,7 +325,7 @@ describe("Events Module (Integration)", () => {
 
 	describe("POST /events/unregister", () => {
 		it("should successfully unregister a user", async () => {
-			// Setup: Event avec 1 inscrit (l'utilisateur courant)
+			// Setup : Event avec 1 inscrit (l'utilisateur courant)
 			const user = await userFactory.create({ role: "user" });
 			const event = await eventFactory.create({
 				nbPlaceTotal: 10,
@@ -336,7 +334,7 @@ describe("Events Module (Integration)", () => {
 				Status: "Ok",
 			});
 
-			// Action: Désinscription
+			// Action : Désinscription
 			// Note: On assume que POST retourne 201 par défaut dans NestJS
 			await user.event.unregister(event._id.toString()).expect(201);
 
@@ -347,12 +345,12 @@ describe("Events Module (Integration)", () => {
 		});
 
 		it('should change status from "Complet" to "Ok" and decrease capacity', async () => {
-			// Setup: Event COMPLET avec l'utilisateur inscrit
+			// Setup : Event COMPLET avec l'utilisateur inscrit
 			const user = await userFactory.create({ role: "user" });
 			const event = await eventFactory.create({
 				nbPlaceTotal: 10,
 				nbPlaceOccupe: 10,
-				personneInscrites: [user.userData._id], // (simulation, techniquement il y en aurait 9 autres)
+				personneInscrites: [user.userData._id], // (simulation, techniquement, il y en aurait 9 autres)
 				Status: "Complet",
 			});
 
@@ -380,7 +378,7 @@ describe("Events Module (Integration)", () => {
 		it("should return 400 if user is not registered", async () => {
 			const user = await userFactory.create({ role: "user" });
 			const event = await eventFactory.create({
-				personneInscrites: [], // Personne inscrit
+				personneInscrites: [], // Personne inscrite
 			});
 
 			const res = await user.event.unregister(event._id.toString()).expect(400);
