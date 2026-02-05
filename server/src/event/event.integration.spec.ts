@@ -184,7 +184,7 @@ describe("Events Module (Integration)", () => {
 			const event = await eventFactory.create({
 				nbPlaceTotal: 5,
 				nbPlaceOccupe: 1,
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 			});
 
 			await user.event.register(event._id.toString()).expect(409);
@@ -291,7 +291,7 @@ describe("Events Module (Integration)", () => {
 
 			await eventFactory.create({
 				Nom: "My Event",
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 			});
 
 			const response = await user.event.getAll().expect(200);
@@ -332,7 +332,7 @@ describe("Events Module (Integration)", () => {
 			const event = await eventFactory.create({
 				nbPlaceTotal: 10,
 				nbPlaceOccupe: 1,
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 				Status: "Ok",
 			});
 
@@ -352,7 +352,7 @@ describe("Events Module (Integration)", () => {
 			const event = await eventFactory.create({
 				nbPlaceTotal: 10,
 				nbPlaceOccupe: 10,
-				personneInscrites: [new Types.ObjectId(user.userData._id)], // (simulation, techniquement il y en aurait 9 autres)
+				personneInscrites: [user.userData._id], // (simulation, techniquement il y en aurait 9 autres)
 				Status: "Complet",
 			});
 
@@ -369,7 +369,7 @@ describe("Events Module (Integration)", () => {
 			const user = await userFactory.create({ role: "user" });
 			const event = await eventFactory.create({
 				Status: "Cancelled",
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 				nbPlaceOccupe: 5,
 			});
 
@@ -402,13 +402,13 @@ describe("Events Module (Integration)", () => {
 			await eventFactory.create({
 				Nom: "Updated Event",
 				EditDate: new Date(),
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 			});
 
 			await eventFactory.create({
 				Nom: "Old Event",
 				EditDate: new Date("2023-01-01"),
-				personneInscrites: [new Types.ObjectId(user.userData._id)],
+				personneInscrites: [user.userData._id],
 			});
 
 			await eventFactory.create({ Nom: "Not My Event", EditDate: new Date() });
