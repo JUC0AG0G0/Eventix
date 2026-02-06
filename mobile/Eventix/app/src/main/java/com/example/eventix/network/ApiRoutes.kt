@@ -12,6 +12,7 @@ object ApiRoutes {
 
     // Events
     const val EVENT_REGISTER = "$HOST/events/register"          // POST pour s'inscrire
+    const val EVENT_UNREGISTER = "$HOST/events/unregister"          // POST pour déinscrire
     fun EVENT_SYNC(date: String) = "$HOST/events/sync?since=$date"                  // GET events modifiés depuis lastSync
 
     // Les endpoints qui nécessitent l'ID de l'événement

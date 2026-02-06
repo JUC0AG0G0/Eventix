@@ -61,6 +61,9 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
     val role = remember { prefs.getString("role", "") ?: "" }
 
+    var isUnregistering by remember { mutableStateOf(false) }
+    var showUnregisterConfirmDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(eventId) {
         val token = prefs.getString("access_token", null)
         if (token == null) return@LaunchedEffect navigateToMain(navController)
@@ -152,6 +155,40 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                 val msg = resp.body?.string()?.takeIf { it.isNotBlank() } ?: "Erreur serveur ${resp.code}"
                 Pair(false, msg)
             }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Erreur réseau")
+        }
+    }
+
+    suspend fun performUnregister(): Pair<Boolean, String?> {
+        val token = prefs.getString("access_token", null) ?: return Pair(false, "Token manquant")
+        return try {
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+
+            val bodyJson = JSONObject()
+                .put("id", eventId)
+                .put("unregister", true)
+                .toString()
+
+            val body = bodyJson.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(ApiRoutes.EVENT_UNREGISTER) // même endpoint
+                .addHeader("Authorization", "Bearer $token")
+                .post(body)
+                .build()
+
+            val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+
+            if (resp.isSuccessful) {
+                Pair(true, null)
+            } else {
+                val msg = resp.body?.string()?.takeIf { it.isNotBlank() }
+                    ?: "Erreur serveur ${resp.code}"
+                Pair(false, msg)
+            }
+
         } catch (e: Exception) {
             Pair(false, e.message ?: "Erreur réseau")
         }
@@ -377,15 +414,19 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                         val status = data.optString("Status", "").lowercase() // ex: "ok", "full", "cancelled"
                         val alreadyRegistered = data.optBoolean("AlreadyRegister", false)
                         val canRegister = status == "ok" && !alreadyRegistered && !isRegistering
+                        val canUnregister = alreadyRegistered && !isUnregistering
 
                         when (role.lowercase()) {
                             "user" -> {
                                 // Bouton principal pour user
                                 Button(
                                     onClick = {
-                                        if (canRegister) showConfirmDialog = true
+                                        when {
+                                            alreadyRegistered -> showUnregisterConfirmDialog = true
+                                            canRegister -> showConfirmDialog = true
+                                        }
                                     },
-                                    enabled = canRegister,
+                                    enabled = canRegister || canUnregister,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(0xFFFF9800),
                                         disabledContainerColor = Color(0xFFE0A85A)
@@ -410,7 +451,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                                     "Annulé"
 
                                                 alreadyRegistered ->
-                                                    "Déjà inscrit"
+                                                    "Se désinscrire"
 
                                                 status.equals("full", ignoreCase = true)
                                                         || status.equals("complet", ignoreCase = true) ->
@@ -466,6 +507,46 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                                     containerColor = Color(0xFFFF9800),
                                                     contentColor = Color.White
                                                 )
+                                            ) {
+                                                Text("Annuler")
+                                            }
+                                        }
+                                    )
+                                }
+                                if (showUnregisterConfirmDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { if (!isUnregistering) showUnregisterConfirmDialog = false },
+                                        title = { Text("Confirmer la désinscription") },
+                                        text = { Text("Voulez-vous vous désinscrire de \"${data.optString("Nom")}\" ?") },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = {
+                                                    showUnregisterConfirmDialog = false
+                                                    isUnregistering = true
+
+                                                    coroutineScope.launch {
+                                                        val (ok, errorMsg) = performUnregister()
+                                                        isUnregistering = false
+
+                                                        if (ok) {
+                                                            try {
+                                                                eventData = JSONObject(data.toString())
+                                                                    .put("AlreadyRegister", false)
+                                                            } catch (_: Exception) {}
+
+                                                            navController.navigate(successRouteFor(SuccessType.CANCELLATION))
+                                                        } else {
+                                                            Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                Text("Confirmer")
+                                            }
+                                        },
+                                        dismissButton = {
+                                            Button(
+                                                onClick = { showUnregisterConfirmDialog = false }
                                             ) {
                                                 Text("Annuler")
                                             }
