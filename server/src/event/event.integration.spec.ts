@@ -55,7 +55,6 @@ describe("Events Module (Integration)", () => {
 			const subscribers = dbEvent!.personneInscrites.map((id: any) => id.toString());
 			expect(subscribers).toContain(user.userData._id.toString());
 
-			// Conversion safe pour ESLint
 			const d1 = new Date(dbEvent!.EditDate).getTime();
 			const d2 = new Date(initialEditDate).getTime();
 			expect(d1).toBeGreaterThan(d2);
@@ -239,7 +238,12 @@ describe("Events Module (Integration)", () => {
 			await user.event.register(event._id.toString());
 			const updated = await user.event.getOne(event._id.toString());
 
-			expect(new Date(updated.body.EditDate).getTime()).toBeGreaterThan(new Date(initialEditDate).getTime());
+			const updatedEditDate = updated.body.EditDate as string;
+
+			const initialTime = new Date(initialEditDate as string | Date).getTime();
+			const updatedTime = new Date(updatedEditDate).getTime();
+
+			expect(updatedTime).toBeGreaterThan(initialTime);
 		});
 	});
 
@@ -311,7 +315,7 @@ describe("Events Module (Integration)", () => {
 			const event = await eventFactory.create({
 				nbPlaceTotal: 10,
 				nbPlaceOccupe: 10,
-				personneInscrites: [user.userData._id], // (simulation, techniquement, il y en aurait 9 autres)
+				personneInscrites: [user.userData._id],
 				Status: "Complet",
 			});
 
@@ -338,7 +342,6 @@ describe("Events Module (Integration)", () => {
 			const user = await userFactory.create({ role: "user" });
 			await eventFactory.create({ personneInscrites: [] });
 
-			// On passe un ID existant, mais où l'user n'est pas inscrit
 			const event = await eventFactory.create({ personneInscrites: [] });
 			const res = await user.event.unregister(event._id.toString()).expect(400);
 			expect(res.body.message).toMatch(/not registered/i);
@@ -375,7 +378,6 @@ describe("Events Module (Integration)", () => {
 		});
 
 		it("should return 400 for invalid date format", async () => {
-			// AJOUT DE AWAIT ICI
 			const user = await userFactory.create();
 			await user.event.sync("invalid-date").expect(400);
 		});
@@ -394,7 +396,7 @@ describe("Events Module (Integration)", () => {
 
 		it("should return 403 Forbidden for normal user", async () => {
 			const event = await eventFactory.create();
-			// AJOUT DE AWAIT ICI
+
 			const user = await userFactory.create({ role: "user" });
 
 			await user.event.updateCapacity(event._id.toString(), 200).expect(403);
@@ -402,7 +404,7 @@ describe("Events Module (Integration)", () => {
 
 		it("should return 400 if new capacity is lower than occupied", async () => {
 			const event = await eventFactory.create({ nbPlaceTotal: 10, nbPlaceOccupe: 5 });
-			// AJOUT DE AWAIT ICI
+
 			const admin = await userFactory.create({ role: "admin" });
 
 			await admin.event.updateCapacity(event._id.toString(), 4).expect(400);
@@ -437,9 +439,10 @@ describe("Events Module (Integration)", () => {
 		it("should soft delete (cancel) event if there are participants", async () => {
 			const event = await eventFactory.create({
 				nbPlaceOccupe: 1,
-				personneInscrites: [new Types.ObjectId()],
+				personneInscrites: [new Types.ObjectId().toString()],
 				Status: "Ok",
 			});
+
 			const admin = await userFactory.create({ role: "admin" });
 
 			const res = await admin.event.delete(event._id.toString()).expect(200);
