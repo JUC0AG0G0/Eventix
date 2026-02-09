@@ -47,9 +47,8 @@ jobs:
 
   # --------- JOB 2 : Déploiement LOCAL sur le VPS ----------
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ARM64, julesc2]
     needs: build_and_publish
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
