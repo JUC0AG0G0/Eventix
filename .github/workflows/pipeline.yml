@@ -47,73 +47,60 @@ jobs:
 
   # --------- JOB 2 : Déploiement LOCAL sur le VPS ----------
   deploy:
-    runs-on: [self-hosted, eventix, vps]
+    runs-on: [self-hosted, ARM64, julesc2]
     needs: build_and_publish
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Préparer les fichiers de configuration
-        run: |
-          cd $HOME/${{ env.PROJECT_ROOT }}
-          
-          echo "==> Nettoyage préventif"
-          rm -rf init-mongo.js
-          rm -f docker-compose.yml
-          
-          echo "==> Copie des fichiers de configuration"
-          cp ${{ github.workspace }}/docker-compose.yml .
-          cp ${{ github.workspace }}/init-mongo.js .
-          
-          echo "✅ Fichiers copiés."
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
 
-      - name: Générer le fichier .env dynamique
+      - name: Copier fichiers de config vers serveur distant
         run: |
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" scp -P ${{ secrets.DEPLOY_PORT }} -o StrictHostKeyChecking=no \
+            docker-compose.yml init-mongo.js \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$HOME/${{ env.PROJECT_ROOT }}/
+
+      - name: Déploiement distant
+        run: |
+          sshpass -p "${{ secrets.DEPLOY_PASSWORD }}" ssh -p ${{ secrets.DEPLOY_PORT }} -o StrictHostKeyChecking=no \
+          ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+  
           cd $HOME/${{ env.PROJECT_ROOT }}
-          
+  
           echo "==> Génération du fichier .env"
-          cat <<EOF > .env
-          # Environment
+          cat <<EOT > .env
           NODE_ENV=${{ secrets.ENV_NODE_ENV }}
           SERVER_PORT=${{ secrets.ENV_SERVER_PORT }}
           LOG_LEVEL=${{ secrets.ENV_LOG_LEVEL }}
           SWAGGER_ENABLED=${{ secrets.ENV_SWAGGER_ENABLED }}
-
-          # Database Configuration
+  
           DB_HOST=${{ secrets.ENV_DB_HOST }}
           MONGO_PORT=${{ secrets.ENV_MONGO_PORT }}
           MONGO_DB=${{ secrets.ENV_MONGO_DB }}
           MONGO_USER=${{ secrets.ENV_MONGO_USER }}
           MONGO_PASSWORD=${{ secrets.ENV_MONGO_PASSWORD }}
           DATABASE_URL="${{ secrets.ENV_DB_HOST }}://${{ secrets.ENV_MONGO_USER }}:${{ secrets.ENV_MONGO_PASSWORD }}@${{ secrets.ENV_DB_HOST }}:${{ secrets.ENV_MONGO_PORT }}/${{ secrets.ENV_MONGO_DB }}?authSource=admin"
-
-          # JWT Configuration
+  
           JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}
           JWT_EXPIRES_IN=${{ secrets.ENV_JWT_EXPIRES_IN }}
-
-          # Project Name
+  
           PROJECT_NAME=${{ secrets.ENV_PROJECT_NAME }}
-          EOF
-          
-          echo "✅ Fichier .env généré."
-
-      - name: Mise à jour et redémarrage des conteneurs
-        run: |
-          cd $HOME/${{ env.PROJECT_ROOT }}
-
-          echo "==> Connexion au registre"
+          EOT
+  
+          echo "==> Login GHCR"
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-
-          echo "==> Téléchargement de la dernière image"
-          # On continue de puller "latest" pour le déploiement automatique, 
-          # car "latest" correspond maintenant exactement à la version vXX qu'on vient de builder.
+  
+          echo "==> Pull image"
           docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/eventix-api:latest
-
-          echo "==> Redémarrage des services Docker Compose"
+  
+          echo "==> Restart docker compose"
           docker compose --env-file .env down
           docker compose --env-file .env up -d --remove-orphans
-
-          echo "✅ Déploiement backend terminé (Version ${{ env.VERSION }})."
+  
+          echo "✅ Déploiement terminé"
+          EOF
 
 
   # --------- JOB 3 : Build Android APK (Sur le cloud Ubuntu) ----------
