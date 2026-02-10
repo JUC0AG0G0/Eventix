@@ -472,6 +472,7 @@ console.log("🔍 Création des index...");
 db.users.createIndex({ email: 1 }, { unique: true });
 db.event.createIndex({ Status: 1 });
 db.event.createIndex({ EditDate: 1 });
+db.event.createIndex({ personneInscrites: 1 });
 
 console.log("✅ Index créés");
 

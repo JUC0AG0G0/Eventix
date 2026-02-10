@@ -40,7 +40,7 @@ export class EventController {
 	})
 	@ApiResponse({ status: 400, description: "Paramètre since invalide." })
 	async sync(@Query() query: SyncQueryDto, @CurrentUser() user: JwtPayload): Promise<SyncEventsDto> {
-		return this.eventService.syncUserEvents(String(user.sub), query.since);
+		return this.eventService.syncUserEvents(String(user.sub), query.since, query.ids);
 	}
 
 	@Get()

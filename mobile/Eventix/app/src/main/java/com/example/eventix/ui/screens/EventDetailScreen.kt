@@ -168,7 +168,6 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
             val bodyJson = JSONObject()
                 .put("id", eventId)
-                .put("unregister", true)
                 .toString()
 
             val body = bodyJson.toRequestBody(mediaType)
@@ -539,7 +538,11 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
                                                             Toast.makeText(context, "Erreur : $errorMsg", Toast.LENGTH_LONG).show()
                                                         }
                                                     }
-                                                }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFFFF9800),
+                                                contentColor = Color.White
+                                            )
                                             ) {
                                                 Text("Confirmer")
                                             }
