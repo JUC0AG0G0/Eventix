@@ -3,6 +3,7 @@ package com.example.eventix.data.repository
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.room.withTransaction
 import com.example.eventix.data.local.AppDatabase
 import com.example.eventix.data.local.EventEntity
 import com.example.eventix.network.ApiRoutes
@@ -18,80 +19,80 @@ class EventRepository(
     private val db: AppDatabase
 ) {
 
+    companion object {
+        private const val DEFAULT_SYNC_DATE = "1970-11-01T10:30:50.909Z"
+    }
+
     private val client = OkHttpClient()
 
-    suspend fun syncEvents(token: String) {
+    suspend fun syncEvents(token: String) = withContext(Dispatchers.IO) {
 
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        try {
+            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            val lastSyncDate = prefs.getString("date_sync", DEFAULT_SYNC_DATE)!!
 
-        val lastSyncDate =
-            prefs.getString("date_sync", "1970-11-01T10:30:50.909Z")
-                ?: "1970-11-01T10:30:50.909Z"
+            // 🔹 Récupération des IDs locaux
+            val localIds = db.eventDao().getAllEventIds()
 
-        withContext(Dispatchers.IO) {
-            try {
+            val idsCsv = if (localIds.isNotEmpty()) {
+                java.net.URLEncoder.encode(
+                    localIds.joinToString(","),
+                    java.nio.charset.StandardCharsets.UTF_8.toString()
+                )
+            } else null
 
-                val url = ApiRoutes.EVENT_SYNC(lastSyncDate)
+            val request = Request.Builder()
+                .url(ApiRoutes.EVENT_SYNC(lastSyncDate, idsCsv))
+                .addHeader("Authorization", "Bearer $token")
+                .get()
+                .build()
 
-                val request = Request.Builder()
-                    .url(url)
-                    .addHeader("Authorization", "Bearer $token")
-                    .get()
-                    .build()
+            val response = client.newCall(request).execute()
 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Requête de synchro", Toast.LENGTH_SHORT).show()
-                }
+            if (!response.isSuccessful) throw Exception("Sync failed ${response.code}")
 
-                client.newCall(request).execute().use { response ->
+            val body = response.body?.string() ?: return@withContext
+            val json = JSONObject(body)
 
-                    if (!response.isSuccessful) {
-                        throw RuntimeException("Sync failed : ${response.code}")
-                    }
+            val newLastSync = json.getString("lastSync")
+            val eventsArray = json.getJSONArray("events")
+            val removedArray = json.getJSONArray("removedEventIds")
 
-                    val responseBody = response.body?.string() ?: return@use
-                    val json = JSONObject(responseBody)
+            val entities = mutableListOf<EventEntity>()
 
-                    val newLastSync = json.getString("lastSync")
-                    val eventsArray = json.getJSONArray("events")
+            for (i in 0 until eventsArray.length()) {
+                val item = eventsArray.getJSONObject(i)
 
-                    val entities = mutableListOf<EventEntity>()
-
-                    for (i in 0 until eventsArray.length()) {
-
-                        val item = eventsArray.getJSONObject(i)
-
-                        entities.add(
-                            EventEntity(
-                                id = item.getString("_id"),
-                                nom = item.getString("Nom"),
-                                description = item.getString("Description"),
-                                image = item.getString("Image"),
-                                nbPlaceTotal = item.getInt("nbPlaceTotal"),
-                                nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
-                                status = item.getString("Status"),
-                                editDate = item.getString("EditDate"),
-                                alreadyRegister = item
-                                    .optBoolean("AlreadyRegister", false)
-                                    .toString()
-                            )
-                        )
-                    }
-
-                    if (entities.isNotEmpty()) {
-                        db.eventDao().upsertAll(entities)
-                    }
-
-                    prefs.edit().putString("date_sync", newLastSync).apply()
-
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Synchro terminée", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-            } catch (e: Exception) {
-                e.printStackTrace()
+                entities.add(
+                    EventEntity(
+                        id = item.getString("_id"),
+                        nom = item.optString("Nom"),
+                        description = item.optString("Description"),
+                        image = item.optString("Image"),
+                        nbPlaceTotal = item.optInt("nbPlaceTotal"),
+                        nbPlaceOccupe = item.optInt("nbPlaceOccupe"),
+                        status = item.optString("Status"),
+                        editDate = item.optString("EditDate"),
+                        alreadyRegister = item.optBoolean("AlreadyRegister", false)
+                    )
+                )
             }
+
+            db.withTransaction {
+
+                if (entities.isNotEmpty()) {
+                    db.eventDao().upsertAll(entities)
+                }
+
+                for (i in 0 until removedArray.length()) {
+                    db.eventDao().deleteById(removedArray.getString(i))
+                }
+            }
+
+            prefs.edit().putString("date_sync", newLastSync).apply()
+
+        } catch (e: Exception) {
+            Log.e("SYNC", "Error", e)
         }
     }
 

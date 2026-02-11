@@ -1,7 +1,6 @@
 package com.example.eventix.ui.screens
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,7 +31,6 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.example.eventix.data.local.AppDatabase
-import com.example.eventix.data.local.EventEntity
 import com.example.eventix.data.repository.EventRepository
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
@@ -46,7 +44,7 @@ data class Event(
     val nbPlaceOccupe: Int,
     val status: String,
     val editDate: String,
-    val alreadyRegister: String
+    val alreadyRegister: Boolean
 )
 
 @Composable
@@ -106,7 +104,7 @@ fun MainScreen(navController: NavController) {
                         nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
                         status = item.getString("Status"),
                         editDate = item.getString("EditDate"),
-                        alreadyRegister = item.getString("AlreadyRegister")
+                        alreadyRegister = item.getBoolean("AlreadyRegister")
                     )
                 )
             }
@@ -304,7 +302,7 @@ fun EventCard(event: Event, enabled: Boolean = true, onClick: () -> Unit, functi
             val statusColor = lerp(Color(0xFF2ECC71), Color(0xFFE74C3C), clamped)
 
             val isFull = event.nbPlaceOccupe >= event.nbPlaceTotal && event.nbPlaceTotal > 0
-            val isRegister = event.alreadyRegister == "true"
+            val isRegister = event.alreadyRegister == true
             val isCancelled = event.status == "Cancelled"
 
             val label = when {

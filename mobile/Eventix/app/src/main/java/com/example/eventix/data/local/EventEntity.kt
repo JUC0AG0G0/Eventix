@@ -16,7 +16,7 @@ data class EventEntity(
     val nbPlaceOccupe: Int,
     val status: String,
     val editDate: String,
-    val alreadyRegister: String
+    val alreadyRegister: Boolean
 )
 
 // --- LA FONCTION DE MAPPING EST ICI ---
