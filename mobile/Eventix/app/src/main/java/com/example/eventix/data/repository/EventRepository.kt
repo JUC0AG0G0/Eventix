@@ -68,10 +68,15 @@ class EventRepository(
 
             for (i in 0 until eventsArray.length()) {
                 val item = eventsArray.getJSONObject(i)
+                val backendId = item.optString("_id", null)
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "id event ${backendId}", Toast.LENGTH_SHORT).show()
+                }
 
                 entities.add(
                     EventEntity(
-                        id = item.getString("_id"),
+                        id = backendId,
                         nom = item.optString("Nom"),
                         description = item.optString("Description"),
                         image = item.optString("Image"),
@@ -154,7 +159,7 @@ class EventRepository(
             try {
 
                 val json = JSONObject().apply {
-                    put("id", pending.eventId)
+                    put("id", "698c996afd2e3b760c8ce5ba")
                 }
 
                 val body = json
@@ -184,9 +189,6 @@ class EventRepository(
                         "UNREGISTER_SYNC",
                         "Fail ${response.code} - ${response.message}"
                     )
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Erreur désinscription ${response.code}", Toast.LENGTH_SHORT).show()
-                    }
                 }
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Désinscription local OK", Toast.LENGTH_SHORT).show()
@@ -194,9 +196,6 @@ class EventRepository(
                 response.close()
 
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Erreur désinscription", Toast.LENGTH_SHORT).show()
-                }
                 Log.e("UNREGISTER_SYNC", "Exception ${pending.eventId}", e)
             }
         }

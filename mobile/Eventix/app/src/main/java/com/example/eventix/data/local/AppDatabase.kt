@@ -8,9 +8,9 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         EventEntity::class,
-        PendingUnregisterEntity::class   // ← TU AS OUBLIÉ ÇA
+        PendingUnregisterEntity::class
     ],
-    version = 2, // ← augmente la version
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,7 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "eventix_db"
                 )
-                    .fallbackToDestructiveMigration() // safe pour dev
+                    .fallbackToDestructiveMigration()
                     .build()
 
                 INSTANCE = instance

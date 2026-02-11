@@ -19,8 +19,6 @@ data class EventEntity(
     val alreadyRegister: Boolean
 )
 
-// --- LA FONCTION DE MAPPING EST ICI ---
-// Elle sert de pont entre la Base de Données (Entity) et l'UI (Event)
 fun EventEntity.toUiEvent(): Event {
     return Event(
         id = this.id,
