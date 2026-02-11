@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.eventix.data.local.AppDatabase
 import com.example.eventix.data.local.toUiEvent
+import com.example.eventix.data.repository.EventRepository
+import kotlinx.coroutines.launch
 
 @Composable
 fun NoNetworkScreen(navController: NavController) {
@@ -36,6 +38,12 @@ fun NoNetworkScreen(navController: NavController) {
     // 3. Observation des données (Flow -> State)
     // "initial = emptyList()" permet d'avoir une liste vide le temps que ça charge
     val localEventsState by db.eventDao().getAllEvents().collectAsState(initial = emptyList())
+
+    // On récupère la DB et on initialise le repository
+    val repository = remember { EventRepository(context, db) }
+
+    // Création d'un scope pour lancer des fonctions suspendues (coroutines)
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -83,7 +91,28 @@ fun NoNetworkScreen(navController: NavController) {
 
                     items(uiEvents) { event ->
                         // On réutilise ta EventCard existante
-                        EventCard(event = event, enabled = false, onClick = {}) {
+                        EventCard(event = event, enabled = true, onClick = {
+                            try {
+                                scope.launch {
+                                    // Ici, on peut appeler la fonction suspendue sans erreur
+                                    repository.saveUnregisterRequest(event.id)
+
+                                    // On affiche le Toast pour confirmer
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Désinscription locale : ${event.id}",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Erreur lors de la sauvegarde",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }) {
                             // Navigation vers le détail (attention, le détail doit aussi gérer le offline !)
                             navController.navigate("event/${event.id}")
                         }

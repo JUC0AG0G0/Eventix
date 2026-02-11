@@ -6,12 +6,15 @@ import android.widget.Toast
 import androidx.room.withTransaction
 import com.example.eventix.data.local.AppDatabase
 import com.example.eventix.data.local.EventEntity
+import com.example.eventix.data.local.PendingUnregisterEntity
 import com.example.eventix.network.ApiRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 class EventRepository(
@@ -26,6 +29,9 @@ class EventRepository(
     private val client = OkHttpClient()
 
     suspend fun syncEvents(token: String) = withContext(Dispatchers.IO) {
+
+        // Appeler la fonction qui fait les appel de désinscription enregistré en local.
+        sendPendingUnregisterRequests(token)
 
         try {
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -90,9 +96,15 @@ class EventRepository(
             }
 
             prefs.edit().putString("date_sync", newLastSync).apply()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Synchronisation terminée", Toast.LENGTH_SHORT).show()
+            }
 
         } catch (e: Exception) {
             Log.e("SYNC", "Error", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Erreur de synchronisation", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -114,6 +126,78 @@ class EventRepository(
                     Toast.makeText(context, "Erreur suppression", Toast.LENGTH_SHORT).show()
                 }
                 e.printStackTrace()
+            }
+        }
+    }
+
+
+    // fonction qui enregistre en local les futur requette de désinscription a envoyer.
+    suspend fun saveUnregisterRequest(eventId: String) {
+        withContext(Dispatchers.IO) {
+            db.pendingUnregisterDao().insert(
+                PendingUnregisterEntity(eventId)
+            )
+        }
+    }
+
+
+    // Fonction fait les requette de désinscription enregistrer en local puis les supprimer si c'est bon.
+    private suspend fun sendPendingUnregisterRequests(token: String) {
+
+        val dao = db.pendingUnregisterDao()
+        val pendingList = dao.getAll()
+
+        val mediaType = "application/json".toMediaType()
+
+        for (pending in pendingList) {
+
+            try {
+
+                val json = JSONObject().apply {
+                    put("id", pending.eventId)
+                }
+
+                val body = json
+                    .toString()
+                    .toRequestBody(mediaType)
+
+                val request = Request.Builder()
+                    .url(ApiRoutes.EVENT_UNREGISTER)
+                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+
+                    dao.deleteById(pending.eventId)
+                    Log.d("UNREGISTER_SYNC", "Success ${pending.eventId}")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Désinscription ${pending.eventId}", Toast.LENGTH_SHORT).show()
+                    }
+
+                } else {
+
+                    Log.e(
+                        "UNREGISTER_SYNC",
+                        "Fail ${response.code} - ${response.message}"
+                    )
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Erreur désinscription ${response.code}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Désinscription local OK", Toast.LENGTH_SHORT).show()
+                }
+                response.close()
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Erreur désinscription", Toast.LENGTH_SHORT).show()
+                }
+                Log.e("UNREGISTER_SYNC", "Exception ${pending.eventId}", e)
             }
         }
     }
