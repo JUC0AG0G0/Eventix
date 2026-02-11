@@ -1,5 +1,6 @@
 package com.example.eventix.ui.screens
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +23,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventix.data.local.AppDatabase
+import com.example.eventix.data.repository.EventRepository
 import com.example.eventix.network.ApiRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -63,6 +66,10 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
 
     var isUnregistering by remember { mutableStateOf(false) }
     var showUnregisterConfirmDialog by remember { mutableStateOf(false) }
+
+    val db = AppDatabase.getDatabase(context)
+    val repository = EventRepository(context, db)
+
 
     LaunchedEffect(eventId) {
         val token = prefs.getString("access_token", null)
@@ -173,7 +180,7 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
             val body = bodyJson.toRequestBody(mediaType)
 
             val request = Request.Builder()
-                .url(ApiRoutes.EVENT_UNREGISTER) // même endpoint
+                .url(ApiRoutes.EVENT_UNREGISTER)
                 .addHeader("Authorization", "Bearer $token")
                 .post(body)
                 .build()
@@ -181,6 +188,9 @@ fun EventDetailScreen(navController: NavController, eventId: String, prefs: andr
             val resp = withContext(Dispatchers.IO) { client.newCall(request).execute() }
 
             if (resp.isSuccessful) {
+
+                Log.d("DELETE_TEST_screen", "Deleting id = $eventId")
+                repository.deleteEventById(eventId)
                 Pair(true, null)
             } else {
                 val msg = resp.body?.string()?.takeIf { it.isNotBlank() }

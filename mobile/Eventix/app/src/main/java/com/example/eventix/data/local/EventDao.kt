@@ -15,4 +15,7 @@ interface EventDao {
     // Insert ou Met à jour (REPLACE) si l'ID existe déjà. C'est la clé de ton système de "correction"
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(events: List<EventEntity>)
+
+    @Query("DELETE FROM events WHERE id = :eventId")
+    suspend fun deleteById(eventId: String)
 }
