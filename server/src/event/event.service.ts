@@ -309,39 +309,114 @@ export class EventService {
 		return updated;
 	}
 
-	async syncUserEvents(userId: string, sinceIso?: string): Promise<SyncEventsDto> {
+	async syncUserEvents(userId: string, sinceIso?: string, clientEventIds?: string[]): Promise<SyncEventsDto> {
 		const since = sinceIso ? new Date(sinceIso) : new Date(0);
 
 		if (sinceIso && Number.isNaN(since.getTime())) {
-			throw new BadRequestException({ message: "Paramètre 'since' invalide (format ISO attendu)." });
+			throw new BadRequestException({
+				message: "Paramètre 'since' invalide (format ISO attendu).",
+			});
 		}
 
-		const eventsRaw = await this.findUserEventsModifiedAfter(userId, since);
+		const { eventsToSync, removedEventIds } = await this.findUserEventsModifiedAfter(
+			userId,
+			since,
+			clientEventIds ?? [],
+		);
 
-		const events = plainToInstance(EventDto, eventsRaw, {
+		const events = plainToInstance(EventDto, eventsToSync, {
 			excludeExtraneousValues: true,
 		});
 
 		return {
 			lastSync: new Date().toISOString(),
 			events,
+			removedEventIds,
 		};
 	}
 
-	async findUserEventsModifiedAfter(userId: string, since: Date) {
-		if (!Types.ObjectId.isValid(userId)) {
+	async findUserEventsModifiedAfter(userId: string, since: Date, clientEventIds: string[]) {
+		if (!userId) {
 			throw new BadRequestException("Invalid user id");
 		}
 
-		const userObjectId = new Types.ObjectId(userId);
+		const clientIdsSet = new Set(clientEventIds);
 
-		return this.eventModel
+		/*
+			Query 1 :
+			On récupère tous les events modifiés depuis "since"
+		*/
+		const modifiedEvents = await this.eventModel
 			.find({
-				personneInscrites: { $in: [userObjectId] },
 				EditDate: { $gt: since },
 			})
-			.sort({ EditDate: -1 })
 			.lean()
 			.exec();
+
+		/*
+			Query 2 :
+			On récupère tous les events actuels où le user est inscrit
+		*/
+		const currentUserEvents = await this.eventModel
+			.find({
+				personneInscrites: userId,
+			})
+			.select({ _id: 1 })
+			.lean()
+			.exec();
+
+		const currentUserEventIds = new Set(currentUserEvents.map((e) => String(e._id)));
+
+		const eventsToSync: any[] = [];
+		const removedEventIds: string[] = [];
+
+		/*
+			Analyse des events modifiés
+		*/
+		for (const event of modifiedEvents) {
+			const eventId = String(event._id);
+			const userIsRegistered = event.personneInscrites?.includes(userId);
+
+			/*
+				CAS : event pas côté client
+			*/
+			if (!clientIdsSet.has(eventId)) {
+				if (userIsRegistered) {
+					eventsToSync.push(event);
+				}
+				continue;
+			}
+
+			/*
+				CAS : event côté client MAIS user plus inscrit
+				-> prioritaire
+			*/
+			if (!userIsRegistered) {
+				removedEventIds.push(eventId);
+				continue;
+			}
+
+			/*
+				CAS : event côté client ET modifié ET user inscrit
+			*/
+			eventsToSync.push(event);
+		}
+
+		/*
+			CAS suppression physique ou désinscription silencieuse
+			(client a un event mais serveur ne l’a plus pour ce user)
+		*/
+		for (const clientId of clientIdsSet) {
+			if (!currentUserEventIds.has(clientId)) {
+				if (!removedEventIds.includes(clientId)) {
+					removedEventIds.push(clientId);
+				}
+			}
+		}
+
+		return {
+			eventsToSync,
+			removedEventIds,
+		};
 	}
 }

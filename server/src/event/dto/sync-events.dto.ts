@@ -13,4 +13,6 @@ export class SyncEventsDto {
 		type: [EventDto],
 	})
 	events: EventDto[];
+
+	removedEventIds: string[];
 }

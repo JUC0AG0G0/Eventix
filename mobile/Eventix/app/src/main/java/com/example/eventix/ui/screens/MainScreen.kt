@@ -1,6 +1,7 @@
 package com.example.eventix.ui.screens
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -149,9 +150,17 @@ fun MainScreen(navController: NavController) {
                     .get()
                     .build()
 
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Requette de synchro", Toast.LENGTH_SHORT).show()
+                }
+
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         throw RuntimeException("Sync failed: url : ${url} et le reste : ${response.code}")
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Successfull", Toast.LENGTH_SHORT).show()
                     }
 
                     val responseBody = response.body?.string() ?: return@use
@@ -191,22 +200,21 @@ fun MainScreen(navController: NavController) {
 
                     // 5. Mettre à jour la date de sync UNIQUEMENT si tout s'est bien passé
                     prefs.edit().putString("date_sync", newLastSync).apply()
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "synchro fini", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Optionnel : Gérer l'erreur silencieusement ou notifier l'UI
             }
         }
     }
 
     LaunchedEffect(Unit) {
         if (!token.isNullOrEmpty()) {
-            // On lance la sync dans une coroutine séparée pour ne pas bloquer l'UI
             launch(Dispatchers.IO) {
                 syncEvents(context, token)
-                // Optionnel : Une fois la sync finie, tu pourrais recharger la page
-                // pour afficher les données mises à jour si l'utilisateur est sur la page 1
-                // withContext(Dispatchers.Main) { loadPage(1, reset = true) }
             }
         }
     }

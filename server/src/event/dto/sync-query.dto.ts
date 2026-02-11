@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsISO8601 } from "class-validator";
+import { IsOptional, IsISO8601, IsArray, IsString } from "class-validator";
+import { Transform } from "class-transformer";
 
 export class SyncQueryDto {
 	@ApiPropertyOptional({
@@ -9,4 +10,14 @@ export class SyncQueryDto {
 	@IsOptional()
 	@IsISO8601()
 	since?: string;
+
+	@ApiPropertyOptional({
+		description: "Liste des IDs d'événements connus côté client (CSV)",
+		example: "id1,id2,id3",
+	})
+	@IsOptional()
+	@Transform(({ value }) => (typeof value === "string" ? value.split(",") : value))
+	@IsArray()
+	@IsString({ each: true })
+	ids?: string[];
 }
