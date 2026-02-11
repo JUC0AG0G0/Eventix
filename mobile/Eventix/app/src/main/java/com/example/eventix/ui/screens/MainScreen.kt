@@ -1,7 +1,6 @@
 package com.example.eventix.ui.screens
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,7 +31,7 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.example.eventix.data.local.AppDatabase
-import com.example.eventix.data.local.EventEntity
+import com.example.eventix.data.repository.EventRepository
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
@@ -45,7 +44,7 @@ data class Event(
     val nbPlaceOccupe: Int,
     val status: String,
     val editDate: String,
-    val alreadyRegister: String
+    val alreadyRegister: Boolean
 )
 
 @Composable
@@ -105,7 +104,7 @@ fun MainScreen(navController: NavController) {
                         nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
                         status = item.getString("Status"),
                         editDate = item.getString("EditDate"),
-                        alreadyRegister = item.getString("AlreadyRegister")
+                        alreadyRegister = item.getBoolean("AlreadyRegister")
                     )
                 )
             }
@@ -130,92 +129,12 @@ fun MainScreen(navController: NavController) {
         }
     }
 
-    suspend fun syncEvents(context: Context, token: String) {
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val db = AppDatabase.getDatabase(context)
-
-        // 1. Récupérer la date ou la valeur par défaut (ISO 8601 très ancienne)
-        val lastSyncDate = prefs.getString("date_sync", "1970-11-01T10:30:50.909Z") ?: "1970-11-01T10:30:50.909Z"
-
-        withContext(Dispatchers.IO) {
-            try {
-                // 2. Préparer la requête
-                val client = OkHttpClient()
-                // Assure-toi que ApiRoutes.EVENT_SYNC gère le paramètre date correctement
-                val url = ApiRoutes.EVENT_SYNC(lastSyncDate)
-
-                val request = Request.Builder()
-                    .url(url)
-                    .addHeader("Authorization", "Bearer $token")
-                    .get()
-                    .build()
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Requette de synchro", Toast.LENGTH_SHORT).show()
-                }
-
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw RuntimeException("Sync failed: url : ${url} et le reste : ${response.code}")
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Successfull", Toast.LENGTH_SHORT).show()
-                    }
-
-                    val responseBody = response.body?.string() ?: return@use
-                    val json = JSONObject(responseBody)
-
-                    // 3. Parser la réponse
-                    val newLastSync = json.getString("lastSync")
-                    val eventsArray = json.getJSONArray("events")
-
-                    val entitiesToInsert = mutableListOf<EventEntity>()
-
-                    for (i in 0 until eventsArray.length()) {
-                        val item = eventsArray.getJSONObject(i)
-
-                        // Conversion JSON -> Entity
-                        entitiesToInsert.add(
-                            EventEntity(
-                                id = item.getString("_id"),
-                                nom = item.getString("Nom"),
-                                description = item.getString("Description"),
-                                image = item.getString("Image"),
-                                nbPlaceTotal = item.getInt("nbPlaceTotal"),
-                                nbPlaceOccupe = item.getInt("nbPlaceOccupe"),
-                                status = item.getString("Status"),
-                                editDate = item.getString("EditDate"),
-                                // Attention: l'API renvoie un booléen, ton UI attend un String
-                                alreadyRegister = item.optBoolean("AlreadyRegister", false)
-                                    .toString()
-                            )
-                        )
-                    }
-
-                    // 4. Sauvegarder dans la DB locale (Upsert)
-                    if (entitiesToInsert.isNotEmpty()) {
-                        db.eventDao().upsertAll(entitiesToInsert)
-                    }
-
-                    // 5. Mettre à jour la date de sync UNIQUEMENT si tout s'est bien passé
-                    prefs.edit().putString("date_sync", newLastSync).apply()
-
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "synchro fini", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
+    val db = AppDatabase.getDatabase(context)
+    val repository = EventRepository(context, db)
 
     LaunchedEffect(Unit) {
         if (!token.isNullOrEmpty()) {
-            launch(Dispatchers.IO) {
-                syncEvents(context, token)
-            }
+            repository.syncEvents(token)
         }
     }
 
@@ -383,7 +302,7 @@ fun EventCard(event: Event, enabled: Boolean = true, onClick: () -> Unit, functi
             val statusColor = lerp(Color(0xFF2ECC71), Color(0xFFE74C3C), clamped)
 
             val isFull = event.nbPlaceOccupe >= event.nbPlaceTotal && event.nbPlaceTotal > 0
-            val isRegister = event.alreadyRegister == "true"
+            val isRegister = event.alreadyRegister == true
             val isCancelled = event.status == "Cancelled"
 
             val label = when {
